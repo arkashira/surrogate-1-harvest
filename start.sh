@@ -39,6 +39,9 @@ else
 fi
 
 # ── 2. Bind HF Space secrets → ~/.hermes/.env ───────────────────────────────
+# 🔒 DISABLE shell trace before touching secret values.
+set +x
+echo "[$(date +%H:%M:%S)] writing ~/.hermes/.env from secret env vars (trace OFF)"
 mkdir -p ~/.hermes
 {
     echo "# Auto-generated from HF Space secrets at boot"
@@ -51,6 +54,8 @@ mkdir -p ~/.hermes
     done
 } > ~/.hermes/.env
 chmod 600 ~/.hermes/.env
+echo "[$(date +%H:%M:%S)] .env written ($(wc -l < ~/.hermes/.env) keys, perms 600)"
+# Trace OFF for the rest of boot — we already have line numbers above and won't need them post-secrets.
 
 # ── 3. Git config + clone axentx repos for auto-orchestrate auto-commit ────
 # Disable interactive prompts globally so failed-auth git ops fail fast.
@@ -119,15 +124,12 @@ if ! ollama list 2>/dev/null | grep -q "gemma4:e4b"; then
 fi
 
 # ── 6. Discord bot (background) ─────────────────────────────────────────────
-# 🔒 Disable shell trace BEFORE sourcing .env — never echo secrets to logs.
-set +x
+# Trace stays OFF — never re-enable past secrets section.
 if [[ -n "${DISCORD_BOT_TOKEN:-}" ]]; then
     set -a; source ~/.hermes/.env 2>/dev/null; set +a
     nohup python ~/.claude/bin/hermes-discord-bot.py >> "$LOG_DIR/discord-bot.log" 2>&1 &
-    echo "[$(date +%H:%M:%S)] discord bot started" >> "$LOG_DIR/boot.log"
+    echo "[$(date +%H:%M:%S)] discord bot started"
 fi
-# Re-enable trace AFTER secrets are sourced (variables in env, not echoed)
-set -x
 
 # ── 7. Cron loop — fires Hermes daemons 24/7 (no sleep gaps) ────────────────
 cat > /tmp/hermes-cron.sh <<'CRONSH'
