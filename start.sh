@@ -138,50 +138,8 @@ chmod +x /tmp/hermes-cron.sh
 nohup /tmp/hermes-cron.sh > "$LOG_DIR/cron-master.log" 2>&1 &
 echo "[$(date +%H:%M:%S)] cron loop started" >> "$LOG_DIR/boot.log"
 
-# ── 8. Status HTTP server on :7860 (HF requires + UptimeRobot keep-alive) ──
-python3 <<'PYEOF' &
-from http.server import BaseHTTPRequestHandler, HTTPServer
-import json, os, sqlite3, subprocess, datetime
-from pathlib import Path
+# ── 8. Status HTTP server on :7860 (FastAPI/uvicorn — robust binding) ──────
+echo "[$(date +%H:%M:%S)] starting status server :7860" >> "$LOG_DIR/boot.log"
 
-class StatusHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        try:
-            ledger = sqlite3.connect(os.path.expanduser('~/.claude/state/scrape-ledger.db')).execute(
-                'SELECT COUNT(*) FROM scraped').fetchone()[0]
-        except Exception: ledger = 0
-        try:
-            ep_path = Path(os.path.expanduser('~/.claude/state/surrogate-memory/episodes.jsonl'))
-            episodes = sum(1 for _ in ep_path.open()) if ep_path.exists() else 0
-        except Exception: episodes = 0
-        try:
-            procs = int(subprocess.run(['pgrep', '-fc', 'discord-bot|surrogate-dev|scrape-loop|hermes-cron'],
-                                      capture_output=True, text=True).stdout.strip() or 0)
-        except Exception: procs = 0
-        try:
-            train_dir = Path(os.path.expanduser('~/.claude/state/surrogate-memory'))
-            disk_mb = sum(p.stat().st_size for p in train_dir.rglob('*') if p.is_file()) // (1024*1024)
-        except Exception: disk_mb = 0
-        body = json.dumps({
-            'service': 'hermes',
-            'status': 'ok',
-            'ts': datetime.datetime.utcnow().isoformat() + 'Z',
-            'ledger_repos': ledger,
-            'episodes': episodes,
-            'daemons_running': procs,
-            'memory_disk_mb': disk_mb,
-        }, indent=2)
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-        self.wfile.write(body.encode())
-    def log_message(self, *args): pass
-
-print('[hermes] status :7860', flush=True)
-HTTPServer(('0.0.0.0', 7860), StatusHandler).serve_forever()
-PYEOF
-
-# ── 9. Container PID 1 — tail boot log forever ──────────────────────────────
-echo "[$(date +%H:%M:%S)] boot complete — entering watch mode" >> "$LOG_DIR/boot.log"
-tail -f "$LOG_DIR/boot.log"
+# Run as PID 1 — uvicorn handles signals + auto-restart on crash
+exec python3 ~/.claude/bin/hermes-status-server.py >> "$LOG_DIR/status-server.log" 2>&1
