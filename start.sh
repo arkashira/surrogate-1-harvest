@@ -2,15 +2,17 @@
 # Hermes start orchestrator for HF Space.
 # Boots: persistent /data mount → Redis → Ollama → axentx repos → daemons → status server.
 set -uo pipefail
-# Trace ON for boot — finds hangs immediately. Disable later if logs too noisy.
-PS4='[$(date +%H:%M:%S)] +${LINENO}: '
-set -x
 
 LOG_DIR="${HOME}/.claude/logs"
 mkdir -p "$LOG_DIR"
 echo "[$(date +%H:%M:%S)] hermes-hf-space boot start"
 echo "[$(date +%H:%M:%S)] hermes-hf-space boot start" >> "$LOG_DIR/boot.log"
-# Echo all subsequent stdout so HF run-logs show progress
+
+# Trace mode for early steps only (no secrets here yet) — find hang point but stay safe
+PS4='[trace ${LINENO}] '
+set -x
+
+# Echo stdout so HF run-logs see progress (safe steps before .env is loaded)
 exec > >(tee -a "$LOG_DIR/boot.log") 2>&1
 
 # ── 1. Persistent data — symlink state dirs to /data (HF persistent mount) ──
@@ -117,11 +119,15 @@ if ! ollama list 2>/dev/null | grep -q "gemma4:e4b"; then
 fi
 
 # ── 6. Discord bot (background) ─────────────────────────────────────────────
+# 🔒 Disable shell trace BEFORE sourcing .env — never echo secrets to logs.
+set +x
 if [[ -n "${DISCORD_BOT_TOKEN:-}" ]]; then
-    set -a; source ~/.hermes/.env; set +a
+    set -a; source ~/.hermes/.env 2>/dev/null; set +a
     nohup python ~/.claude/bin/hermes-discord-bot.py >> "$LOG_DIR/discord-bot.log" 2>&1 &
     echo "[$(date +%H:%M:%S)] discord bot started" >> "$LOG_DIR/boot.log"
 fi
+# Re-enable trace AFTER secrets are sourced (variables in env, not echoed)
+set -x
 
 # ── 7. Cron loop — fires Hermes daemons 24/7 (no sleep gaps) ────────────────
 cat > /tmp/hermes-cron.sh <<'CRONSH'
@@ -149,7 +155,14 @@ nohup /tmp/hermes-cron.sh > "$LOG_DIR/cron-master.log" 2>&1 &
 echo "[$(date +%H:%M:%S)] cron loop started" >> "$LOG_DIR/boot.log"
 
 # ── 8. Status HTTP server on :7860 (FastAPI/uvicorn — robust binding) ──────
-echo "[$(date +%H:%M:%S)] starting status server :7860" >> "$LOG_DIR/boot.log"
+set +x   # silence trace for clean uvicorn logs
+echo "[$(date +%H:%M:%S)] starting status server :7860" | tee -a "$LOG_DIR/boot.log"
+
+# Verify deps before exec — print what's missing rather than silent crash
+python3 -c "import fastapi, uvicorn; print(f'  fastapi {fastapi.__version__} + uvicorn {uvicorn.__version__} ok')" || {
+    echo "❌ fastapi/uvicorn not importable — falling back to plain http.server"
+    exec python3 -m http.server 7860 --bind 0.0.0.0
+}
 
 # Run as PID 1 — uvicorn handles signals + auto-restart on crash
-exec python3 ~/.claude/bin/hermes-status-server.py >> "$LOG_DIR/status-server.log" 2>&1
+exec python3 ~/.claude/bin/hermes-status-server.py
