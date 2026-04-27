@@ -271,7 +271,7 @@ def tool_glob(pattern, path=None):
 
 def tool_grep(pattern, path=None, glob='*'):
     base = os.path.expanduser(path) if path else CWD
-    cmd = f"/usr/bin/grep -rn --include='{glob}' -E {subprocess.list2cmdline([pattern])} {base} 2>/dev/null | head -40"
+    cmd = f"grep -rn --include='{glob}' -E {subprocess.list2cmdline([pattern])} {base} 2>/dev/null | head -40"
     r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
     return {'matches': r.stdout[:5000]}
 
@@ -576,18 +576,160 @@ repl() {
     echo "${D}session ended${R}"
 }
 
-# ═══ Init project — scaffold SURROGATE.md ═══
+# ═══ Init project — interactive PRD wizard → surrogate.md → auto-dev ═══
 init_project() {
-    local target="$(pwd)/SURROGATE.md"
+    local target="$(pwd)/surrogate.md"
+    local upper="$(pwd)/SURROGATE.md"
+    [[ -f "$upper" && ! -f "$target" ]] && target="$upper"
+
     if [[ -f "$target" ]]; then
-        echo "${YE}⚠ SURROGATE.md already exists at $target${R}"
+        echo "${YE}⚠ ${target} already exists${R}"
         echo -en "Overwrite? [y/N] "; read -r ans
         [[ "$ans" != "y" && "$ans" != "Y" ]] && exit 0
     fi
-    cp "$SURROGATE_HOME/SURROGATE.md.template" "$target"
-    echo "${GR}✅ Created ${target}${R}"
-    echo "${D}  Edit it to add project instructions + plan tasks.${R}"
-    echo "${D}  Then: surrogate plan set SURROGATE.md${R}"
+
+    clear
+    banner
+    echo ""
+    echo "${B}${BCY}╭─ Surrogate-1 PRD Wizard ──────────────────╮${R}"
+    echo "${B}${BCY}│${R} ผมจะถาม 8 คำถามแบบ batch — ตอบทีเดียว"
+    echo "${B}${BCY}│${R} แล้วผมจะ generate ${CY}surrogate.md${R} (PRD ฉบับสมบูรณ์)"
+    echo "${B}${BCY}│${R} ตามด้วย ${CY}auto-dev${R} → SA → architect → dev → QA → reviewer"
+    echo "${B}${BCY}│${R} TDD + DDD + design patterns enforced"
+    echo "${B}${BCY}╰────────────────────────────────────────────╯${R}"
+    echo ""
+
+    # ── Q&A ──────────────────────────────────────────────────────────────────
+    echo "${B}1. Project name${R} (e.g. costinel-cost-anomaly):"
+    read -rp "  > " Q_NAME
+    echo ""
+    echo "${B}2. One-line description${R} (what does it do? for whom?):"
+    read -rp "  > " Q_DESC
+    echo ""
+    echo "${B}3. Tech stack${R} (e.g. \"Python 3.12 + FastAPI + PostgreSQL + AWS CDK\"):"
+    read -rp "  > " Q_STACK
+    echo ""
+    echo "${B}4. Architecture style${R} [hex|ddd|mvc|micro|mono] (default: ddd):"
+    read -rp "  > " Q_ARCH
+    Q_ARCH="${Q_ARCH:-ddd}"
+    echo ""
+    echo "${B}5. Top features${R} (one per line, blank line to end):"
+    Q_FEATURES=""
+    while true; do
+        read -rp "  - " feat
+        [[ -z "$feat" ]] && break
+        Q_FEATURES+="- $feat"$'\n'
+    done
+    echo ""
+    echo "${B}6. Test strategy${R} [tdd|heavy|smoke|none] (default: tdd):"
+    read -rp "  > " Q_TEST
+    Q_TEST="${Q_TEST:-tdd}"
+    echo ""
+    echo "${B}7. Constraints${R} (security/performance/compliance/cost — comma-sep):"
+    read -rp "  > " Q_CONSTRAINTS
+    echo ""
+    echo "${B}8. Target users / business context${R} (1-2 sentences):"
+    read -rp "  > " Q_USERS
+    echo ""
+
+    echo "${YE}▶ Generating ${target} via Surrogate-1 (HF brain)...${R}"
+    echo ""
+
+    # ── Build prompt for Surrogate-1 to generate PRD ─────────────────────────
+    local prompt="You are an elite product/architecture strategist. Generate a COMPLETE, professional surrogate.md (PRD + ADRs + plan) based on these inputs:
+
+# Project: $Q_NAME
+- Description: $Q_DESC
+- Stack: $Q_STACK
+- Architecture style: $Q_ARCH
+- Test strategy: $Q_TEST
+- Constraints: $Q_CONSTRAINTS
+- Users/context: $Q_USERS
+- Features:
+$Q_FEATURES
+
+Output structure (markdown):
+
+## Project
+<one-paragraph summary>
+
+## Vision & Mission
+
+## Tech Stack
+<expand from input — include lib versions, infra services, observability stack>
+
+## Architecture
+<chosen style with rationale. Diagram in mermaid if applicable.>
+
+## Domain Model
+<DDD: bounded contexts, entities, aggregates, value objects, repositories — based on features>
+
+## Coding Standards
+- TDD: test-first, one assertion per test, factory functions for fixtures
+- $Q_ARCH design patterns enforced (Repository, Factory, Strategy, Builder where appropriate)
+- Type-strict, parse-don't-validate, branded types
+- Result/Either over throws
+- Naming: intent-revealing, units in names (retryDelayMs)
+
+## Key Files (initial structure)
+<file tree with one-line purpose for each>
+
+## Constraints (non-negotiable)
+<from input>
+
+## Architecture Decision Records
+- ADR-001: <auto-generate from architecture choice>
+- ADR-002: <auto-generate from test strategy>
+- ADR-003: <auto-generate from one constraint>
+
+## Auto-Dev Plan
+- [ ] task description (atomic, ~30 min each, dev → QA → reviewer)
+<break each feature into 3-7 tasks. Format strictly: '- [ ] <verb> <object>'>
+
+## Test Strategy
+<test pyramid breakdown for $Q_TEST>
+
+## Definition of Done
+- All tasks checked + reviewed
+- Tests passing (target coverage)
+- Docs updated
+- ADRs reflect actual implementation
+
+Output ONLY the markdown, no preamble. Be specific to the project — not generic boilerplate."
+
+    # Call Surrogate-1 (HF brain or local fallback)
+    local prd
+    prd=$(echo "$prompt" | timeout 180 "$0" -p --max-steps 5 2>&1 | tail -200)
+
+    # Filter to just the markdown part (drop spinner/log lines)
+    prd=$(echo "$prd" | sed -E 's/^\[[0-9:]+\]//; /^[⏺●]/d; /thinking\.\.\./d')
+
+    if [[ -z "$prd" ]] || [[ ${#prd} -lt 200 ]]; then
+        echo "${RE}❌ PRD generation failed or too short. Falling back to template.${R}"
+        cp "$SURROGATE_HOME/SURROGATE.md.template" "$target"
+    else
+        echo "$prd" > "$target"
+    fi
+
+    echo ""
+    echo "${GR}${B}✅ PRD created: ${target}${R}"
+    echo ""
+    echo "${B}Preview:${R}"
+    head -30 "$target" | sed 's/^/  /'
+    echo "${D}  ... ($(wc -l < "$target") lines total)${R}"
+    echo ""
+    echo "${B}Next step:${R}"
+    echo "  ${CY}surrogate plan set ${target}${R}    # set as active plan"
+    echo "  ${CY}surrogate --auto${R}                # start auto-dev pipeline (SA → architect → dev → QA → reviewer)"
+    echo ""
+    echo -en "${B}Run auto-dev now? [Y/n]${R} "
+    read -r START_NOW
+    if [[ "$START_NOW" != "n" && "$START_NOW" != "N" ]]; then
+        bash "$0" plan set "$target"
+        echo ""
+        echo "${GR}▶ Starting auto-dev pipeline...${R}"
+        bash "$0" --auto
+    fi
 }
 
 # ═══ Auto-Dev mode — plan-driven or interactive ═══
@@ -700,7 +842,7 @@ monitor_mode() {
         # If critical → spawn agent to investigate
         if [[ $ERR_COUNT -gt 50 ]]; then
             echo "${RE}⚠ elevated errors — dispatching investigator agent${R}"
-            (run_agent "เช็ค ~/.claude/logs/ หา pattern error ที่ recur บ่อย และเสนอ fix list (ห้ามแก้เอง รายงานอย่างเดียว)" 2>&1 | /usr/bin/head -20) &
+            (run_agent "เช็ค ~/.claude/logs/ หา pattern error ที่ recur บ่อย และเสนอ fix list (ห้ามแก้เอง รายงานอย่างเดียว)" 2>&1 | head -20) &
         fi
         sleep 30
     done

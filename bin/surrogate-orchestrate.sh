@@ -58,19 +58,56 @@ CWD: $(pwd)"
     fi
 }
 
-# ═══ Stage 1: ARCHITECT ═══
+# Read project PRD if exists (DDD/TDD/architecture context)
+PRD_CONTEXT=""
+for prd_file in "$(pwd)/surrogate.md" "$(pwd)/SURROGATE.md"; do
+    [[ -f "$prd_file" ]] && PRD_CONTEXT=$(head -c 4000 "$prd_file") && break
+done
+[[ -n "$PRD_CONTEXT" ]] && PRD_CONTEXT="
+
+=== Project PRD (surrogate.md) ===
+$PRD_CONTEXT
+=== End PRD ==="
+
+# ═══ Stage 1: SOLUTION ARCHITECT (SA) — high-level design ═══
+SA_OUT="$WORKDIR/0-sa-design.md"
+echo ""
+echo "${MA}${B}═══ Stage 1/6: SOLUTION ARCHITECT${R} ${D}— DDD + design patterns${R}"
+call_agent "solution-architect" "
+You are a senior Solution Architect. For this task, produce a high-level technical design BEFORE any code.
+
+Required output:
+1. **Bounded contexts** (DDD) — which subdomain(s) does this touch?
+2. **Domain model changes** — entities, aggregates, value objects, repositories
+3. **Design patterns** to apply (Repository, Factory, Strategy, Observer, Builder, etc.) — pick deliberately, justify each
+4. **Architecture style** alignment (hexagonal/MVC/MVVM/clean) — show layer flow
+5. **Integration points** — APIs, events, side-effects (with sequence diagram in mermaid if non-trivial)
+6. **Non-functional impacts** — perf, security, scalability, observability
+7. **Risks + mitigations**
+
+Be specific. No generic platitudes. Use codebase via read/grep/glob.
+${PRD_CONTEXT}
+Task: $TASK
+" "$SA_OUT"
+
+# ═══ Stage 2: ARCHITECT — file-level decomposition ═══
 ARCH_OUT="$WORKDIR/1-architect-plan.md"
 echo ""
-echo "${MA}${B}═══ Stage 1/5: ARCHITECT${R} ${D}— decompose + plan${R}"
+echo "${MA}${B}═══ Stage 2/6: ARCHITECT${R} ${D}— file-level plan${R}"
 call_agent "architect" "
-วิเคราะห์ task แล้วสร้าง plan ใน spec format:
-1. Requirements (what / why)
-2. Decomposition (steps needed)
-3. Files to create/modify (with paths)
-4. Test criteria
-5. Rollback plan
+You are the Tech Architect. Take the SA design and produce a CONCRETE file-level execution plan.
 
-Use \`read\`, \`glob\`, \`grep\` to understand current codebase first.
+SA design at: $SA_OUT
+
+Required output:
+1. **Files to create/modify** — exact paths + one-line purpose each
+2. **Function signatures** — for new public APIs (with types)
+3. **Test files first** (TDD) — list test cases BEFORE implementation files
+4. **Dependencies** — new packages? versions?
+5. **Migration plan** — DB schema changes, config rollout
+6. **Rollback** — how to undo if production breaks
+
+Use existing codebase patterns — read 3-5 similar files first via \`read\`/\`grep\`.
 Task: $TASK
 " "$ARCH_OUT"
 
@@ -81,33 +118,72 @@ if [[ "$MODE" == "plan" ]]; then
     exit 0
 fi
 
-# ═══ Stage 2: DEV ═══
-DEV_OUT="$WORKDIR/2-dev-summary.md"
+# ═══ Stage 3: QA-FIRST (TDD) — write tests BEFORE code ═══
+TDD_OUT="$WORKDIR/2-qa-tdd-tests.md"
 echo ""
-echo "${MA}${B}═══ Stage 2/5: DEV${R} ${D}— implement code${R}"
+echo "${MA}${B}═══ Stage 3/6: QA-FIRST (TDD)${R} ${D}— write failing tests first${R}"
+call_agent "qa" "
+You are the QA Engineer practicing TDD. Write FAILING tests BEFORE the dev writes any code.
+
+SA design: $SA_OUT
+Architect plan: $ARCH_OUT
+
+Required:
+1. Read existing test patterns in repo (pytest / jest / go test) via \`read\`/\`grep\`
+2. Use the architect's listed test file paths
+3. Write tests using \`write\` tool — they MUST fail (red phase of TDD)
+4. One assertion per test, factory functions for fixtures, descriptive names
+5. Cover: happy path, edge cases, error paths, security boundaries
+6. NO implementation — only tests
+
+Output: list of test file paths created + brief 'tests will fail because <reason>'
+Task: $TASK
+" "$TDD_OUT"
+
+# ═══ Stage 4: DEV — implement to make tests pass ═══
+DEV_OUT="$WORKDIR/3-dev-summary.md"
+echo ""
+echo "${MA}${B}═══ Stage 4/6: DEV${R} ${D}— implement to green${R}"
 call_agent "dev" "
-Implement the architect's plan. Write actual code files using \`write\`/\`edit\` tools.
+You are the Senior Developer. Make the QA tests PASS by implementing per the Architect plan.
 
-Architect plan at: $ARCH_OUT
+SA design:    $SA_OUT
+Architect:    $ARCH_OUT
+QA tests:     $TDD_OUT
 
-After implementation, write summary (which files you created/modified) to output file.
+Strict rules:
+1. Implement ONLY what's needed to make tests pass (red → green → refactor)
+2. Apply DDD: Repository pattern for data access, no business logic in handlers
+3. Apply design patterns from SA design (Strategy/Factory/Observer/etc.)
+4. Type-strict (TS strict / Python type hints / Go generics)
+5. Result/Either pattern over throws for expected errors
+6. Intent-revealing names — verbs for functions, units for numerics
+7. NO commented-out code, NO TODO without ticket ID, NO hallucinated imports
+8. After each file: refactor for readability while keeping tests green
+
+Use \`write\`/\`edit\` tools — write actual files, not pseudocode.
+After done: write summary to output file with file list + test pass status.
 Task: $TASK
 " "$DEV_OUT"
 
-# ═══ Stage 3: QA ═══
-QA_OUT="$WORKDIR/3-qa-report.md"
+# ═══ Stage 5: QA-VERIFY — run all tests + add missing coverage ═══
+QA_OUT="$WORKDIR/4-qa-report.md"
 echo ""
-echo "${MA}${B}═══ Stage 3/5: QA${R} ${D}— test + verify${R}"
+echo "${MA}${B}═══ Stage 5/6: QA-VERIFY${R} ${D}— green tests + coverage${R}"
 call_agent "qa" "
-Test the implementation. Run:
-- syntax check (python -c / node -c / go vet)
-- existing tests if any
-- write basic unit tests if missing
+You are the QA Engineer in verification phase. The dev claims tests pass — VERIFY.
 
-Dev summary: $DEV_OUT
-Architect plan: $ARCH_OUT
+QA tests written: $TDD_OUT
+Dev summary:      $DEV_OUT
 
-Report test results to output file: pass/fail per check + findings.
+Required:
+1. Run the test suite via \`bash\` (pytest / npm test / go test ./...)
+2. Verify all tests pass (no skips, no x's)
+3. Check coverage — if missing branches, add MORE tests + re-run
+4. Run linting (ruff / eslint / golangci-lint) and type-check (mypy / tsc / go vet)
+5. Manual sanity test of happy path
+
+Output to file: pass/fail per check + coverage % + new tests added (if any).
 Task: $TASK
 " "$QA_OUT"
 
@@ -115,7 +191,7 @@ Task: $TASK
 if echo "$TASK" | grep -iqE "deploy|docker|helm|k8s|terraform|cicd|ci/cd"; then
     OPS_OUT="$WORKDIR/4-ops-checklist.md"
     echo ""
-    echo "${MA}${B}═══ Stage 4/5: OPS${R} ${D}— deploy + infra${R}"
+    echo "${MA}${B}═══ Stage 6a/6: OPS${R} ${D}— deploy + infra${R}"
     call_agent "ops" "
 Review infrastructure aspects. Check:
 - Dockerfile / helm chart / terraform validity
@@ -129,13 +205,13 @@ Task: $TASK
 " "$OPS_OUT"
 else
     echo ""
-    echo "${GY}═══ Stage 4/5: OPS — skipped (not infra task)${R}"
+    echo "${GY}═══ Stage 6a/6: OPS — skipped (not infra task)${R}"
 fi
 
 # ═══ Stage 5: REVIEWER ═══
 REVIEW_OUT="$WORKDIR/5-review-verdict.md"
 echo ""
-echo "${MA}${B}═══ Stage 5/5: REVIEWER${R} ${D}— final gate${R}"
+echo "${MA}${B}═══ Stage 6/6: REVIEWER${R} ${D}— final gate${R}"
 call_agent "reviewer" "
 FINAL REVIEW GATE. Check all prior stages:
 - Architect plan: $ARCH_OUT
