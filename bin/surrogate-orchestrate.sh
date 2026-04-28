@@ -111,6 +111,7 @@ $prompt
 ${RESEARCH_CONTEXT}
 ${PRD_CONTEXT}
 ${REPO_CONTEXT}
+${RAG_CONTEXT}
 
 === Working context ===
 CWD: $(pwd)

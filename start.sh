@@ -274,8 +274,10 @@ while true; do
     # Every 60 min: dataset enrich (pulls fresh public datasets, dedups, uploads to HF)
     # (was 4h — accelerated to drain 96-dataset queue ASAP per user request)
     [[ $((M % 60)) -eq 5 ]] && bash ~/.surrogate/bin/dataset-enrich.sh >> "$LOG" 2>&1 &
-    # Every 15 min: self-ingest training-pairs into FTS index (closes the self-improvement loop)
+    # Every 15 min: self-ingest training-pairs into FTS index (closes self-improvement)
     [[ $((M % 15)) -eq 0 ]] && bash ~/.surrogate/bin/surrogate-self-ingest.sh >> "$LOG" 2>&1 &
+    # Every 30 min: build vector embeddings index (RAG semantic search)
+    [[ $((M % 30)) -eq 12 ]] && bash ~/.surrogate/bin/rag-vector-builder.sh >> "$LOG" 2>&1 &
     # Every 30 min: synthetic data generation (REWORK→APPROVE DPO + distilabel rewrite)
     [[ $((M % 30)) -eq 7 ]] && bash ~/.surrogate/bin/synthetic-data-from-rework.sh >> "$LOG" 2>&1 &
     # Daily 04:00 UTC: refresh CVE feed (NVD + CISA KEV) → security-knowledge dataset
