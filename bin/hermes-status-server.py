@@ -167,7 +167,7 @@ def log_tail(name: str, lines: int = 100) -> PlainTextResponse:
         "auto-orchestrate-loop", "training-push", "ollama", "discord-bot",
         "hermes-discord-bot", "surrogate-research-loop", "surrogate-research-apply",
         "surrogate-dev-loop", "domain-scrape-loop", "github-domain-scrape",
-        "qwen-coder", "git-clone", "git-pull", "redis", "parquet-direct-ingest", "bulk-ingest-parallel", "rag-vector-builder", "auto-orchestrate-continuous", "dataset-enrich", "hf-dataset-discoverer", "dedup-bootstrap", "github-agentic-crawler", "ollama-pull-granite", "synthetic-data", "self-ingest", "scrape-sre-postmortems", "refresh-cve-feed", "self-heal-watchdog", "gh-actions-ticker", "llm-burst-generator", "expand-role-keywords",
+        "qwen-coder", "git-clone", "git-pull", "redis", "parquet-direct-ingest", "bulk-ingest-parallel", "rag-vector-builder", "auto-orchestrate-continuous", "dataset-enrich", "hf-dataset-discoverer", "dedup-bootstrap", "github-agentic-crawler", "ollama-pull-granite", "synthetic-data", "self-ingest", "scrape-sre-postmortems", "refresh-cve-feed", "self-heal-watchdog", "gh-actions-ticker", "llm-burst-generator", "expand-role-keywords", "kaggle-trainer",
         "ollama-pull-coder", "ollama-pull-devstral", "ollama-pull-fallback",
         "ollama-pull-yicoder", "ollama-pull-embed", "ollama-pull-light",
     }

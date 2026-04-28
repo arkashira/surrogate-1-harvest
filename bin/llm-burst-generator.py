@@ -268,9 +268,9 @@ def main():
 
     while True:
         cycle += 1
-        # Each cycle: one parallel batch hitting every active provider.
-        # 3-5 templates per provider per cycle.
-        batch_size_per_provider = 3
+        # FULL THROTTLE: 8 templates per provider per cycle (was 3).
+        # Cerebras 1M tok/day = ~30 RPM sustained — plenty of headroom.
+        batch_size_per_provider = 8
         with ThreadPoolExecutor(max_workers=len(active) * batch_size_per_provider) as pool:
             futures = []
             for p in active:
@@ -301,10 +301,10 @@ def main():
                 log(f"  diag {name}: {err}")
             _first_err_per_provider.clear()
 
-        # Pedal-down mode: 30-60s between cycles (was 60-120s).
-        # With Cerebras 1M tok/day budget plus Groq + OpenRouter,
-        # this still stays well within free quotas.
-        time.sleep(30 + random.randint(0, 30))
+        # FULL THROTTLE — Cerebras 1M tok/day = 11.5 RPS sustainable budget.
+        # We're at ~3 providers x 6 templates x cycle. Drop sleep so we
+        # actually use the quota allotment instead of leaving it on the table.
+        time.sleep(10 + random.randint(0, 10))
 
 
 if __name__ == "__main__":

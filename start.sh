@@ -337,6 +337,10 @@ while true; do
     # Cerebras/Groq → +80 specific job-description-style search terms each).
     # Discoverer auto-uses the expanded list on its next cycle.
     [[ $((M % 1440)) -eq 360 ]] && python3 ~/.surrogate/bin/expand-role-keywords.py >> "$LOG_DIR/expand-role-keywords.log" 2>&1 &
+    # Every 6 hours: kick a Kaggle T4 LoRA training run on the latest dataset
+    # slice. Free Kaggle quota = 30 hr/week per account; one full run = 4-6 hr,
+    # so 4 runs/week comfortable. Notebook self-uploads adapter to HF hub.
+    [[ $((M % 360)) -eq 30 ]] && bash ~/.surrogate/bin/kaggle-trainer.sh >> "$LOG_DIR/kaggle-trainer.log" 2>&1 &
     sleep 60
 done
 CRONSH
