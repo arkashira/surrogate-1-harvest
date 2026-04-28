@@ -48,6 +48,11 @@ def _load_role_queries() -> list[tuple[str, str]]:
                 queries.append((q, f"{role}-core"))
             for q in (skills.get("adjacent") or []):
                 queries.append((q, f"{role}-adj"))
+            # NEW: LLM-expanded keywords from real job-description research
+            # (filled by expand-role-keywords.py running weekly via cron).
+            # 80 keywords per role x 17 roles = up to 1,360 extra search terms.
+            for q in (skills.get("expanded") or []):
+                queries.append((q, f"{role}-exp"))
         for q in data.get("cross_cutting_topics") or []:
             queries.append((q, "cross-cutting"))
     # Plus baseline queries (NEVER static — discoverer must keep finding)

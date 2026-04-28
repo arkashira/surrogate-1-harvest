@@ -333,6 +333,10 @@ while true; do
     [[ $((M % 1440)) -eq 240 ]] && bash ~/.surrogate/bin/refresh-cve-feed.sh >> "$LOG" 2>&1 &
     # Daily 05:00 UTC: scrape SRE postmortems (danluu list + awesome-tech-postmortems)
     [[ $((M % 1440)) -eq 300 ]] && bash ~/.surrogate/bin/scrape-sre-postmortems.sh >> "$LOG" 2>&1 &
+    # Daily 06:00 UTC: LLM-expand role keywords (sends each role's skills to
+    # Cerebras/Groq → +80 specific job-description-style search terms each).
+    # Discoverer auto-uses the expanded list on its next cycle.
+    [[ $((M % 1440)) -eq 360 ]] && python3 ~/.surrogate/bin/expand-role-keywords.py >> "$LOG_DIR/expand-role-keywords.log" 2>&1 &
     sleep 60
 done
 CRONSH
