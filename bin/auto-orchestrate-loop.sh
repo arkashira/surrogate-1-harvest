@@ -12,17 +12,19 @@ set -a; source "$HOME/.hermes/.env" 2>/dev/null; set +a
 LOG="$HOME/.surrogate/logs/auto-orchestrate-loop.log"
 mkdir -p "$(dirname "$LOG")"
 
-# ── Resource guard (Linux + macOS) ──────────────────────────────────────────
+# ── Resource guard ──────────────────────────────────────────────────────────
+# HF Space CPU has spiky load avg from ollama pulls + concurrent scrape workers.
+# load >50 = real saturation; free_mb <100 = OOM risk.
+# Previous threshold (load>8) was paused 90% of time during model pulls — too aggressive.
 LOAD=$(uptime | sed -E 's/.*load average[s]?:[[:space:]]*//' | awk -F',' '{print int($1)}')
-# Free memory: Linux /proc/meminfo, macOS vm_stat
 if [[ -r /proc/meminfo ]]; then
     FREE_MB=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo)
 elif command -v vm_stat >/dev/null 2>&1; then
     FREE_MB=$(vm_stat | awk '/Pages free/{gsub("[.]","",$3); printf "%d", ($3*16384)/1048576}')
 else
-    FREE_MB=999  # unknown — assume OK
+    FREE_MB=999
 fi
-if [[ ${LOAD:-0} -gt 8 ]] || [[ ${FREE_MB:-999} -lt 200 ]]; then
+if [[ ${LOAD:-0} -gt 50 ]] || [[ ${FREE_MB:-999} -lt 100 ]]; then
     echo "[$(date +%H:%M:%S)] resource-pause: load=$LOAD free_mb=$FREE_MB — skip" >> "$LOG"
     exit 0
 fi

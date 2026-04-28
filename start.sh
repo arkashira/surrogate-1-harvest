@@ -146,26 +146,25 @@ sleep 6
 #
 # Note: user asked about "qwen3.6" — that's a community general-chat fine-tune,
 # not coder-specialized. qwen3-coder is the official Qwen team flagship for SDLC tasks.
-if ! ollama list 2>/dev/null | grep -q "qwen3-coder"; then
-    echo "[$(date +%H:%M:%S)] pulling qwen3-coder:30b-a3b (~16 GB MoE, primary brain — SWE-bench 60%+)" >> "$LOG_DIR/boot.log"
-    nohup ollama pull qwen3-coder:30b-a3b-instruct-q4_K_M > "$LOG_DIR/ollama-pull-coder.log" 2>&1 &
-fi
-if ! ollama list 2>/dev/null | grep -q "devstral"; then
-    echo "[$(date +%H:%M:%S)] pulling devstral:24b (~14 GB, Mistral SWE-agent — 53.6% SWE-bench)" >> "$LOG_DIR/boot.log"
-    nohup ollama pull devstral:24b > "$LOG_DIR/ollama-pull-devstral.log" 2>&1 &
-fi
-if ! ollama list 2>/dev/null | grep -q "qwen2.5-coder:14b"; then
-    echo "[$(date +%H:%M:%S)] pulling qwen2.5-coder:14b (~9 GB, fallback brain)" >> "$LOG_DIR/boot.log"
-    nohup ollama pull qwen2.5-coder:14b-instruct-q4_K_M > "$LOG_DIR/ollama-pull-fallback.log" 2>&1 &
-fi
-if ! ollama list 2>/dev/null | grep -q "yi-coder"; then
-    echo "[$(date +%H:%M:%S)] pulling yi-coder:9b (~6 GB, 128k context — long file analysis)" >> "$LOG_DIR/boot.log"
-    nohup ollama pull yi-coder:9b > "$LOG_DIR/ollama-pull-yicoder.log" 2>&1 &
-fi
-if ! ollama list 2>/dev/null | grep -q "nomic-embed-text"; then
-    echo "[$(date +%H:%M:%S)] pulling nomic-embed-text (~270MB, RAG embeddings)" >> "$LOG_DIR/boot.log"
-    nohup ollama pull nomic-embed-text > "$LOG_DIR/ollama-pull-embed.log" 2>&1 &
-fi
+# SERIAL pulls — concurrent pulls saturate the 16GB CPU and stall everything else.
+# Background single chained job, not a parallel storm.
+(
+    if ! ollama list 2>/dev/null | grep -q "nomic-embed-text"; then
+        echo "[$(date +%H:%M:%S)] pulling nomic-embed-text (~270MB, fastest — RAG)" >> "$LOG_DIR/boot.log"
+        ollama pull nomic-embed-text > "$LOG_DIR/ollama-pull-embed.log" 2>&1
+    fi
+    if ! ollama list 2>/dev/null | grep -q "qwen2.5-coder:14b"; then
+        echo "[$(date +%H:%M:%S)] pulling qwen2.5-coder:14b (~9 GB, fallback brain)" >> "$LOG_DIR/boot.log"
+        ollama pull qwen2.5-coder:14b-instruct-q4_K_M > "$LOG_DIR/ollama-pull-fallback.log" 2>&1
+    fi
+    if ! ollama list 2>/dev/null | grep -q "qwen3-coder"; then
+        echo "[$(date +%H:%M:%S)] pulling qwen3-coder:30b-a3b (~16 GB MoE, primary brain)" >> "$LOG_DIR/boot.log"
+        ollama pull qwen3-coder:30b-a3b-instruct-q4_K_M > "$LOG_DIR/ollama-pull-coder.log" 2>&1
+    fi
+    # Skip devstral + yi-coder for now — over budget on free 16GB instance.
+    # Re-enable after upgrade to HF Pro tier (32GB+).
+    echo "[$(date +%H:%M:%S)] all model pulls done (serial, no CPU storm)" >> "$LOG_DIR/boot.log"
+) &
 
 # ── 6. Discord bot (only if egress to discord.com is reachable) ────────────
 # HF Spaces free tier may block egress to discord.com — bot would crash-loop.
@@ -234,6 +233,10 @@ while true; do
     [[ $((M % 360)) -eq 30 ]] && bash ~/.surrogate/bin/surrogate-research-loop.sh >> "$LOG" 2>&1 &
     # Every 12 hours: dataset enrich (pulls fresh public datasets, dedups, uploads to HF)
     [[ $((M % 720)) -eq 60 ]] && bash ~/.surrogate/bin/dataset-enrich.sh >> "$LOG" 2>&1 &
+    # Every 15 min: self-ingest training-pairs into FTS index (closes the self-improvement loop)
+    [[ $((M % 15)) -eq 0 ]] && bash ~/.surrogate/bin/surrogate-self-ingest.sh >> "$LOG" 2>&1 &
+    # Every 30 min: synthetic data generation (REWORK→APPROVE DPO + distilabel rewrite)
+    [[ $((M % 30)) -eq 7 ]] && bash ~/.surrogate/bin/synthetic-data-from-rework.sh >> "$LOG" 2>&1 &
     sleep 60
 done
 CRONSH
