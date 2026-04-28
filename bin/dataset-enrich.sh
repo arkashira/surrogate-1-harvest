@@ -112,7 +112,31 @@ DATASETS = [
     ("ddjain/krkn-dataset",                         "MIT",         "krkn-chaos",          "instr-resp",             1000),
     # ── Linux/bash command knowledge ─────────────────────────────────────────
     ("mecha-org/linux-command-dataset",             "Apache",      "linux-commands",      "instr-resp",             8669),
-    # NOTE: SWE-bench/SWE-bench_Verified RESERVED AS EVAL ONLY — never include here.
+    # ── DBA / Text-to-SQL (was zero coverage) ────────────────────────────────
+    ("seeklhy/SynSQL-2.5M",                         "Apache",      "synsql-2_5m",         "synsql-quad",          200000),
+    ("gretelai/synthetic_text_to_sql",              "Apache",      "gretel-text2sql",     "domain-sql-prompt",    105000),
+    ("xu3kev/BIRD-SQL-data-train",                  "CC-BY-SA",    "bird-sql",            "schema-sql",             9400),
+    # ── Frontend (React/Next/Tailwind, was 2/5) ──────────────────────────────
+    ("cfahlgren1/react-code-instructions",          "MIT",         "react-instr",         "instr-resp",            74000),
+    ("Tesslate/Next.js-Dataset",                    "Apache",      "nextjs-dataset",      "q-r-reasoning",         50000),
+    ("HuggingFaceM4/WebSight",                      "CC-BY-4.0",   "websight",            "screenshot-html",      300000),
+    # ── Mobile (was 1/5) ─────────────────────────────────────────────────────
+    ("mllmTeam/MobileViews",                        "MIT",         "mobile-views",        "android-screenshot-vh", 60000),
+    ("google/mobile-actions",                       "CC-BY-4.0",   "mobile-actions",      "tools-messages-android",30000),
+    # ── Data Engineering + ML (notebook reasoning) ───────────────────────────
+    ("jupyter-agent/jupyter-agent-dataset",         "Apache",      "jupyter-agent",       "notebook-messages",     51000),
+    ("adyen/DABstep",                               "CC-BY-4.0",   "dabstep",             "task-q-a-guidelines",     450),
+    # ── Architecture (was 1/5) — KILLER 450K dataset ────────────────────────
+    ("ajibawa-2023/Software-Architecture",          "Apache",      "software-arch",       "instruction-input-output",150000),
+    # ── Multilingual coding (15 langs, permissive filter) ───────────────────
+    ("HuggingFaceTB/stack-edu",                     "Apache",      "stack-edu",           "stack-edu-multi",      300000),
+    # ── Code instruction (Granite-trained, 950k Apache) ──────────────────────
+    ("glaiveai/glaive-code-assistant-v3",           "Apache",      "glaive-code-v3",      "instr-resp",           150000),
+    # ── Agentic tool-use + reasoning (NVIDIA Nemotron) ───────────────────────
+    ("nvidia/Nemotron-Agentic-v1",                  "CC-BY-4.0",   "nemotron-agentic",    "tools-messages-reasoning",100000),
+    # ── OpenAPI completion ──────────────────────────────────────────────────
+    ("BohdanPetryshyn/openapi-completion-refined",  "MIT",         "openapi-refined",     "instr-resp",              990),
+    # NOTE: SWE-bench/SWE-bench_Verified + bigcode/bigcodebench RESERVED AS EVAL ONLY.
 ]
 
 # 1. Existing axentx hashes for dedup
@@ -292,6 +316,86 @@ with open(out_path, "w") as out:
                     response = f"**Mitigation**: {mitig}"
                     if cis:
                         response += f"\n\n**CIS Benchmark reference**: {cis}"
+                elif schema == "synsql-quad":             # SynSQL-2.5M text-to-SQL with CoT
+                    schema_str = str(row.get("schema") or row.get("create_statements",""))[:3000]
+                    nl = str(row.get("question") or row.get("nl",""))[:1500]
+                    sql = str(row.get("sql") or row.get("query",""))[:3000]
+                    cot = str(row.get("cot") or row.get("reasoning",""))[:2000]
+                    if not nl or not sql: continue
+                    prompt = f"Schema:\n{schema_str}\n\nQuestion: {nl}\n\nWrite the SQL query."
+                    response = sql
+                    if cot: response = f"**Reasoning**: {cot}\n\n**SQL**:\n```sql\n{sql}\n```"
+                elif schema == "domain-sql-prompt":       # gretel synthetic text-to-sql
+                    domain = str(row.get("domain","general"))
+                    prompt_text = str(row.get("sql_prompt") or row.get("prompt",""))[:2000]
+                    sql = str(row.get("sql","") or row.get("answer",""))[:3000]
+                    if not prompt_text or not sql: continue
+                    prompt = f"[{domain}] {prompt_text}"
+                    response = f"```sql\n{sql}\n```"
+                elif schema == "schema-sql":              # BIRD-SQL
+                    db_id = str(row.get("db_id",""))
+                    nl = str(row.get("question",""))[:1500]
+                    sql = str(row.get("SQL") or row.get("sql",""))[:3000]
+                    if not nl or not sql: continue
+                    prompt = f"Database: {db_id}\nQuestion: {nl}\nGenerate SQL."
+                    response = f"```sql\n{sql}\n```"
+                elif schema == "screenshot-html":         # WebSight
+                    desc = str(row.get("text") or row.get("description") or "this UI")[:1500]
+                    html = str(row.get("html") or row.get("code",""))[:6000]
+                    if not html: continue
+                    prompt = f"Generate a Tailwind HTML page that matches this description: {desc}"
+                    response = f"```html\n{html}\n```"
+                elif schema == "android-screenshot-vh":   # MobileViews
+                    pkg = str(row.get("package_name","app"))
+                    vh = str(row.get("view_hierarchy") or row.get("vh",""))[:5000]
+                    if not vh: continue
+                    prompt = f"Describe this Android view hierarchy from {pkg}:\n{vh}"
+                    response = f"This is an Android screen for {pkg}. The view hierarchy shows the UI structure with nested layouts and widgets."
+                    continue  # placeholder — skip until we generate real descriptions
+                elif schema == "tools-messages-android":  # google/mobile-actions
+                    msgs = row.get("messages") or row.get("conversations") or []
+                    if not isinstance(msgs, list) or len(msgs) < 2: continue
+                    prompt = str(msgs[0].get("content","") or msgs[0].get("value",""))[:4000]
+                    response = "\n".join(str(m.get("content","") or m.get("value","")) for m in msgs[1:])[:8000]
+                elif schema == "tools-messages-reasoning":# NVIDIA Nemotron-Agentic
+                    msgs = row.get("messages") or []
+                    if not isinstance(msgs, list) or len(msgs) < 2: continue
+                    prompt = str(msgs[0].get("content",""))[:4000]
+                    response = "\n".join(str(m.get("content","")) for m in msgs[1:])[:8000]
+                elif schema == "instruction-input-output":# ajibawa Software-Architecture
+                    instr = str(row.get("instruction",""))[:3000]
+                    inp = str(row.get("input",""))[:2000]
+                    out = str(row.get("output",""))[:8000]
+                    if not instr or not out: continue
+                    prompt = f"{instr}\n\n{inp}".strip()
+                    response = out
+                elif schema == "q-r-reasoning":           # Tesslate Next.js Q+A+reasoning
+                    q = str(row.get("question") or row.get("query",""))[:3000]
+                    a = str(row.get("answer") or row.get("response",""))[:8000]
+                    r = str(row.get("reasoning",""))[:2000]
+                    if not q or not a: continue
+                    prompt = q
+                    response = f"{a}" + (f"\n\n[Reasoning: {r}]" if r else "")
+                elif schema == "notebook-messages":       # jupyter-agent
+                    msgs = row.get("messages") or []
+                    if not isinstance(msgs, list) or len(msgs) < 2: continue
+                    prompt = str(msgs[0].get("content",""))[:4000]
+                    response = "\n".join(str(m.get("content","")) for m in msgs[1:])[:8000]
+                elif schema == "task-q-a-guidelines":     # adyen DABstep
+                    task = str(row.get("task") or row.get("question",""))[:3000]
+                    answer = str(row.get("answer","") or row.get("expected",""))[:4000]
+                    guide = str(row.get("guidelines","") or row.get("notes",""))[:2000]
+                    if not task or not answer: continue
+                    prompt = f"{task}" + (f"\n\nGuidelines: {guide}" if guide else "")
+                    response = answer
+                elif schema == "stack-edu-multi":         # HuggingFaceTB stack-edu (filter permissive)
+                    if str(row.get("license_type","")).lower() != "permissive": continue
+                    code = str(row.get("text") or row.get("content",""))[:6000]
+                    lang = str(row.get("language",""))
+                    if len(code) < 100: continue
+                    prompt = f"Explain this educational {lang} code example:\n```{lang}\n{code}\n```"
+                    response = "[stack-edu sample — pending LLM-generated explanation]"
+                    continue  # placeholder — skip
                 else:
                     continue
 
