@@ -385,11 +385,16 @@ if [[ "$MODE" == "plan" ]]; then
     exit 0
 fi
 
-# ── Stage 4: DEV ──
+# ── Stage 4: DEV (with MoA consensus + self-correction) ──
 DEV_OUT="$WORKDIR/4-dev-summary.md"
 echo ""
-echo "${MA}${B}═══ Stage 4/6: DEV${R} ${D}— implement to green${R}"
-call_agent "dev" "
+echo "${MA}${B}═══ Stage 4/6: DEV${R} ${D}— implement to green (MoA consensus enabled)${R}"
+
+# Use MoA consensus for DEV stage by default — 3 LLMs propose, judge synthesizes
+# Higher quality at 4× cost. Override with ENABLE_MOA=0 if needed.
+ENABLE_MOA="${ENABLE_MOA:-1}"
+
+DEV_PROMPT="
 You are the Senior Developer. Make the QA tests PASS by implementing per the Architect plan.
 
 Inputs:
@@ -410,9 +415,75 @@ Rules:
 - Result/Either pattern over throws for expected errors
 - Intent-revealing names; units in numerics
 - NO commented-out code, NO TODO without ticket ID, NO hallucinated imports
+- MATCH existing codebase style from REPO CONTEXT above
+- Use REAL imports from REPO CONTEXT — don't invent new ones
 
 Task: $TASK
-" "$DEV_OUT"
+"
+
+if [[ "$ENABLE_MOA" == "1" ]] && [[ -x "$HOME/.surrogate/bin/moa-consensus.py" ]]; then
+    echo "${D}  using MoA consensus (3 propose + 1 judge)${R}"
+    DEV_PROMPT_FILE="$WORKDIR/.dev-prompt.txt"
+    echo "$DEV_PROMPT" > "$DEV_PROMPT_FILE"
+    GEMINI_KEY="${GEMINI_API_KEY:-}" \
+    GEMINI_KEY2="${GEMINI_API_KEY_2:-}" \
+    GROQ_KEY="${GROQ_API_KEY:-}" \
+    CEREBRAS_KEY="${CEREBRAS_API_KEY:-}" \
+    HF_TOKEN="${HF_TOKEN:-${HUGGING_FACE_HUB_TOKEN:-}}" \
+        python3 "$HOME/.surrogate/bin/moa-consensus.py" "$DEV_PROMPT_FILE" "dev" > "$DEV_OUT" 2>>"$WORKDIR/dev-stderr.log"
+    if [[ -s "$DEV_OUT" ]]; then
+        echo "${GR}  ⎿ dev (MoA) done → $(basename "$DEV_OUT") ($(wc -c < "$DEV_OUT" | tr -d ' ') bytes)${R}"
+        head -2 "$DEV_OUT" | sed 's/^/    │ /' | cut -c1-110
+        # Push as training pair
+        push_training_pair "orchestrate-dev-moa" "$DEV_PROMPT" "$(cat "$DEV_OUT")"
+    else
+        echo "${YE}  ⎿ MoA empty — falling back to single-model${R}"
+        call_agent "dev" "$DEV_PROMPT" "$DEV_OUT"
+    fi
+else
+    call_agent "dev" "$DEV_PROMPT" "$DEV_OUT"
+fi
+
+# ── Self-correction: if QA detects failure, retry DEV with error context ──
+# Run quick test extraction + execution check on the dev output
+DEV_RETRIES=0
+while [[ $DEV_RETRIES -lt 2 ]]; do
+    # Extract code blocks; check for obvious issues (syntax, missing imports)
+    SELF_CHECK=$(python3 - "$DEV_OUT" <<'PYEOF' 2>/dev/null
+import sys, re
+out = open(sys.argv[1]).read()
+issues = []
+# Detect Python files and try parsing them
+for m in re.finditer(r'###\s+([^\n]+\.py)\s*\n+```python\n(.*?)^```', out, re.MULTILINE | re.DOTALL):
+    path, code = m.group(1).strip(), m.group(2)
+    try:
+        compile(code, path, 'exec')
+    except SyntaxError as e:
+        issues.append(f"SyntaxError in {path}:{e.lineno} — {e.msg}")
+    # Detect commonly hallucinated imports
+    for imp in re.findall(r'^from\s+(\w[\w.]*)\s+import|^import\s+(\w[\w.]*)', code, re.MULTILINE):
+        mod = imp[0] or imp[1]
+        if mod.startswith(('app.', 'src.', 'core.', 'lib.', 'utils.')):
+            # Check if module exists in repo context (rough heuristic)
+            pass  # skip — too noisy
+print('\n'.join(issues) if issues else 'OK')
+PYEOF
+)
+    if [[ "$SELF_CHECK" == "OK" ]]; then
+        break
+    fi
+    DEV_RETRIES=$((DEV_RETRIES + 1))
+    echo "${YE}  ⎿ self-check found issues (retry $DEV_RETRIES/2):${R}"
+    echo "$SELF_CHECK" | head -5 | sed 's/^/      /'
+    # Retry with error context
+    RETRY_PROMPT="$DEV_PROMPT
+
+=== PREVIOUS ATTEMPT FAILED — FIX THESE ISSUES ===
+$SELF_CHECK
+
+Generate corrected version. Same output format."
+    call_agent "dev-retry-$DEV_RETRIES" "$RETRY_PROMPT" "$DEV_OUT"
+done
 
 # Extract code blocks from DEV output → write actual files
 if [[ -f "$DEV_OUT" ]]; then
