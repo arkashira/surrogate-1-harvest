@@ -1,0 +1,154 @@
+# Surrogate-1 v2 — Massive Relevant Bulk Datasets
+# Format: hf_repo_id|category|max_samples|priority(1=high)
+#
+# Anything checked off here is WORTH MIRROR + ENRICH + DEDUP.
+# dataset-mirror.sh + dataset-enrich.sh will pick these up.
+# Sanitizer (1dfdc54) + dedup (central SQLite) prevent duplicates across siblings.
+# Discovery agents claim entries via dedup store so no two agents pull same dataset.
+
+# ─── CODE / SDLC (huge mass) ───────────────────────────────────────────────────
+bigcode/the-stack-v2|code|1000000|1
+bigcode/the-stack-v2-smol-ids|code|500000|1
+bigcode/the-stack-v2-train-smol-ids|code|500000|1
+bigcode/starcoderdata|code|1000000|1
+bigcode/the-stack|code|500000|1
+bigcode/commits|code|500000|1
+bigcode/the-stack-github-issues|code|200000|1
+bigcode/issues-with-comments|code|200000|1
+bigcode/the-stack-march-sample|code|100000|2
+bigcode/the-stack-smol|code|100000|2
+codeparrot/github-code-clean|code|500000|1
+codeparrot/github-jupyter-code-to-text|code|100000|2
+codeparrot/codeparrot-clean|code|200000|2
+codeparrot/codecomplex|code|10000|2
+codeparrot/github-jupyter|code|100000|2
+codeparrot/apps|code|10000|2
+codeparrot/conala-mined-curated|code|600000|2
+deepmind/code_contests|code|13000|1
+google-research-datasets/mbpp|code|1000|1
+neulab/conala|code|600000|2
+loubnabnl/humaneval_solutions|code|100|1
+livecodebench/code_generation_lite|code|500|1
+livecodebench/code_generation|code|800|1
+princeton-nlp/SWE-bench_Lite|code|500|1
+princeton-nlp/SWE-bench_Verified|code|500|1
+princeton-nlp/SWE-bench|code|2000|1
+
+# ─── REASONING / MATH-AS-CODE ─────────────────────────────────────────────────
+nvidia/OpenCodeReasoning|reasoning|2000000|1
+nvidia/OpenCodeReasoning-2|reasoning|2500000|1
+nvidia/OpenCodeInstruct|code|5000000|1
+microsoft/rStar-Coder|code|580000|1
+HuggingFaceH4/OpenR1-Math-220k|reasoning|220000|1
+open-thoughts/OpenThoughts-114k|reasoning|114000|1
+GAIR/LIMR|reasoning|100000|2
+nvidia/OpenMathInstruct-2|math|14000000|1
+nvidia/OpenMathReasoning|math|3000000|1
+microsoft/orca-math-word-problems-200k|math|200000|2
+meta-math/MetaMathQA|math|395000|2
+TIGER-Lab/MathInstruct|math|260000|2
+
+# ─── LARGE INSTRUCTION / SFT MIXES ────────────────────────────────────────────
+allenai/tulu-3-sft-mixture|sft|1000000|1
+microsoft/orca-agentinstruct-1M-v1|agent|1000000|1
+arcee-ai/EvolKit-20k|sft|20000|2
+HuggingFaceH4/ultrachat_200k|sft|200000|2
+teknium/OpenHermes-2.5|sft|1000000|2
+Open-Orca/OpenOrca|sft|1000000|2
+Open-Orca/SlimOrca-Dedup|sft|500000|2
+inclusionAI/Ling-Coder-SFT|code|4480000|1
+OpenCoder-LLM/opc-sft-stage1|code|2000000|1
+OpenCoder-LLM/opc-sft-stage2|code|2500000|1
+HuggingFaceTB/smoltalk|sft|1000000|2
+HuggingFaceTB/smoltalk2|sft|2000000|1
+ise-uiuc/Magicoder-OSS-Instruct-75K|code|75000|1
+ise-uiuc/Magicoder-Evol-Instruct-110K|code|110000|1
+HuggingFaceH4/CodeAlpaca_20K|code|20000|2
+nickrosh/Evol-Instruct-Code-80k-v1|code|80000|1
+bigcode/self-oss-instruct-sc2-exec-filter-50k|code|50000|1
+m-a-p/CodeFeedback-Filtered-Instruction|code|157000|1
+Magpie-Align/Magpie-Pro-MT-300K-v0.1|sft|300000|1
+Magpie-Align/Magpie-Llama-3.3-Pro-1M-v0.1|sft|1000000|1
+Magpie-Align/Magpie-Qwen2.5-Pro-1M-v0.1|sft|1000000|1
+argilla/magpie-ultra-v1.0|sft|50000|1
+Salesforce/xlam-function-calling-60k|tool|60000|1
+NousResearch/hermes-function-calling-v1|tool|7900|1
+Agent-Ark/Toucan-1.5M|tool|1500000|1
+nvidia/When2Call|tool|30000|1
+Nanbeige/ToolMind|tool|10000|2
+nvidia/Nemotron-SWE-v1|tool|5000|1
+SWE-Gym/OpenHands-Sampled-Trajectories|agent|2400|1
+SWE-Gym/SWE-Gym|agent|491|1
+SWE-Gym/SWE-smith|agent|26000|1
+R2E-Gym/R2E-Gym-Lite|agent|4500|1
+
+# ─── PREFERENCE / DPO ─────────────────────────────────────────────────────────
+Vezora/Code-Preference-Pairs|dpo|55000|1
+argilla/distilabel-capybara-dpo-7k-binarized|dpo|7000|1
+allenai/tulu-3-pref-personas-instruction-following|dpo|20000|2
+HuggingFaceH4/ultrafeedback_binarized|dpo|62000|2
+nvidia/HelpSteer3|sft|40000|2
+Anthropic/hh-rlhf|sft|160000|2
+
+# ─── DEVOPS / CLOUD / IAC ─────────────────────────────────────────────────────
+bigcode/the-stack-v2|iac|500000|1
+zerolink/zsql-postgres-dpo|dpo|110000|2
+b-mc2/sql-create-context|sql|78000|2
+defog/sqlcoder|sql|50000|2
+gretelai/synthetic_text_to_sql|sql|105000|2
+HuggingFaceH4/no_robots|sft|10000|2
+
+# ─── SECURITY / SOC / DEVSECOPS ───────────────────────────────────────────────
+trendmicro-ailab/Primus-FineWeb|security|2570000|1
+trendmicro-ailab/Primus-Instruct|security|100000|1
+trendmicro-ailab/Primus-Reasoning|security|10000|1
+allenai/wildjailbreak|safety|150000|1
+ai4privacy/pii-masking-200k|safety|200000|1
+LLaMa-Factory/data|safety|10000|2
+allenai/coconot|safety|50000|2
+
+# ─── AGENT / TOOL TRACES (multi-step) ─────────────────────────────────────────
+lambda/hermes-agent-reasoning-traces|agent|14000|1
+nebius/SWE-agent-trajectories|agent|5000|1
+ServiceNow-AI/agent-tool-use|agent|5000|2
+ai-blueprint/agent-research|agent|10000|2
+THUDM/CogACT|agent|50000|2
+
+# ─── DOCS / KNOWLEDGE (cybersec / cloud / SDLC) ──────────────────────────────
+HuggingFaceFW/fineweb-edu|edu|130000000|1
+HuggingFaceFW/fineweb|web|150000000|2
+HuggingFaceFW/finepdfs|pdf|10000000|2
+HuggingFaceTB/cosmopedia-v2|edu|40000000|2
+HuggingFaceTB/cosmopedia|edu|31000000|2
+allenai/dolma|web|50000000|2
+allenai/peS2o|paper|40000000|2
+allenai/c4|web|10000000|2
+mlfoundations/dclm-baseline-1.0|web|10000000|2
+EleutherAI/proof-pile-2|math|30000000|2
+
+# ─── BUSINESS / GTM / FINANCE / LEGAL ─────────────────────────────────────────
+PatronusAI/financebench|finance|150|1
+AdaptLLM/finance-tasks|finance|50000|2
+zeroshot/twitter-financial-news-sentiment|finance|10000|3
+bitext/Bitext-customer-support-llm-chatbot-training-dataset|cs|26000|1
+nlpaueb/legal_qa|legal|10000|2
+casehold/casehold|legal|50000|2
+PatronusAI/legalbench|legal|10000|2
+
+# ─── MULTILINGUAL ─────────────────────────────────────────────────────────────
+CohereForAI/aya_dataset|multi|200000|2
+CohereForAI/aya_collection|multi|200000|2
+HuggingFaceH4/Multilingual-Thinking|reasoning|150000|2
+
+# ─── REASONING DISTILLATIONS (R1/o1-class) ────────────────────────────────────
+GAIR/LIMO|reasoning|820|1
+simplescaling/s1K|reasoning|1000|1
+simplescaling/s1K-1.1|reasoning|1000|1
+ServiceNow-AI/R1-Distill-SFT|reasoning|17000|1
+agentica-org/DeepScaleR-Preview-Dataset|reasoning|40000|1
+agentica-org/DeepCoder-Preview-Dataset|reasoning|24000|1
+KodCode/KodCode-V1|code|447000|1
+
+# ─── MEGA-MIX FOR LATER ───────────────────────────────────────────────────────
+allenai/tulu-3-sft-personas-instruction-following|sft|30000|2
+NeelNanda/pile-10k|web|10000|3

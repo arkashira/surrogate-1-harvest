@@ -325,6 +325,19 @@ echo "[$(date +%H:%M:%S)] parquet-direct-ingest started (2 parallel DLs)" >> "$L
 nohup bash ~/.surrogate/bin/skill-synthesis-daemon.sh > "$LOG_DIR/skill-synthesis.log" 2>&1 &
 echo "[$(date +%H:%M:%S)] skill-synthesis daemon started" >> "$LOG_DIR/boot.log"
 
+# ── 7d. Bulk mirror coordinator + 4 parallel workers ────────────────────────
+# User feedback 2026-04-29: "ทุก agent ทำงานร่วมกัน และไม่ไปที่ซ้ำๆ".
+# Coordinator = SQLite claim queue (~/.surrogate/state/bulk-mirror-claims.db).
+# Workers each pull next pending dataset, mirror+sanitize+dedup, mark done.
+# 100+ massive datasets in bin/v2/bulk-datasets-massive.txt (code/security/SDLC/agent/etc).
+# Lease-based claims (15 min) — crashes auto-expire so other workers pick up.
+python3 ~/.surrogate/bin/v2/bulk-mirror-coordinator.py seed >> "$LOG_DIR/bulk-mirror-seed.log" 2>&1 || true
+for i in 1 2 3 4; do
+    nohup bash ~/.surrogate/bin/v2/bulk-mirror-worker.sh "bulk-w$i" \
+        > "$LOG_DIR/bulk-worker-$i.log" 2>&1 &
+done
+echo "[$(date +%H:%M:%S)] bulk-mirror coordinator + 4 workers started (100+ datasets queued)" >> "$LOG_DIR/boot.log"
+
 # ── 7d. Train-ready pusher — disabled at boot for now. Caused Space
 #       RUNTIME_ERROR on first deployment (2026-04-29). Script kept at
 #       bin/train-ready-pusher.sh; launch manually after Space proves stable:
