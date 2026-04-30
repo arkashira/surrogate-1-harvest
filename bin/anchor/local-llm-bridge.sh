@@ -31,8 +31,14 @@ done
 [[ -z "$PROMPT" ]] && [[ ! -t 0 ]] && PROMPT=$(cat)
 [[ -z "$PROMPT" ]] && { echo "local-llm-bridge: no prompt" >&2; exit 2; }
 
-LOG="/data/logs/local-llm-bridge.log"
-mkdir -p "$(dirname "$LOG")" 2>/dev/null
+# Path-adaptive log: prefer Space-native /data/logs (anchor + bulk Space),
+# fall back to $HOME/.surrogate/logs (Mac dev / non-Space hosts).
+if [[ -d /data ]] && [[ -w /data ]] || mkdir -p /data/logs 2>/dev/null; then
+    LOG="/data/logs/local-llm-bridge.log"
+else
+    LOG="${HOME}/.surrogate/logs/local-llm-bridge.log"
+fi
+mkdir -p "$(dirname "$LOG")" 2>/dev/null || LOG="/dev/null"
 echo "[$(date '+%H:%M:%S')] model=$MODEL len=${#PROMPT}" >> "$LOG"
 
 RESPONSE=$(MODEL="$MODEL" MAX_TOKENS="$MAX_TOKENS" TEMP="$TEMP" HOST="$HOST" \

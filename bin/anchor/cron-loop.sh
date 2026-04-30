@@ -141,6 +141,16 @@ while true; do
         done
     }
 
+    # ── v2 Curated SFT/Tools/Agent/DPO build (weekly) ─────────────────
+    # Runs build-data-pipeline.sh which downloads the named source matrix
+    # (rStar-Coder, OpenCodeReasoning-2, Hermes function-calling, etc.),
+    # sanitizes + dedups + decontaminates, then push-to-hub.py uploads to
+    # axentx/surrogate-1-v2-{train,tools,agent,dpo}. Without this the
+    # curated training datasets stay at 0 files (raw harvest still feeds
+    # pairs-A/B/C/D + training-pairs continuously). ~30-60 min on cache.
+    [[ $((M % 10080)) -eq 1200 ]] && bash "${REPO}/bin/v2/build-data-pipeline.sh" all \
+        >> /data/logs/build-data-pipeline.log 2>&1 &
+
     # Daily 11:00 UTC: regression test suite — catches push breakage early.
     # Anchor runs the FULL suite (incl bridge smoke) since it has compute.
     [[ $((M % 1440)) -eq 660 ]] && bash "${REPO}/bin/v2/regression-test.sh" \

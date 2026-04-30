@@ -1,20 +1,25 @@
 #!/usr/bin/env bash
-# HF Inference API bridge — serverless inference for any HF model.
+# HF Inference API bridge — serverless inference via HF Router.
 # PRO subscription unlocks ~10× higher quota vs free tier.
 #
-# Models known to work on Inference API (free + PRO):
-#   Qwen/Qwen2.5-Coder-32B-Instruct (default — strongest free coder)
-#   Qwen/Qwen2.5-Coder-7B-Instruct
-#   meta-llama/Llama-3.3-70B-Instruct
-#   deepseek-ai/DeepSeek-V3
-#   mistralai/Mistral-Small-24B-Instruct-2501
-#   moonshotai/Kimi-K2.5
-#   openai/gpt-oss-120b
+# Endpoint: https://router.huggingface.co/v1/chat/completions
+# (Generic router auto-routes to whichever provider serves the model.
+# The /hf-inference/v1/ subpath was the OLD provider-specific route and
+# returns 400 "Model not supported by provider hf-inference" for most
+# popular models in 2026 — the router is now multi-provider.)
+#
+# Models known to work via router (verified 2026-04-30):
+#   deepseek-ai/DeepSeek-V4-Pro          (latest DeepSeek)
+#   moonshotai/Kimi-K2.6                  (Moonshot 2026 flagship)
+#   Qwen/Qwen3.6-35B-A3B                  (Qwen 2026 MoE)
+#   google/gemma-4-31B-it                 (Gemma 4)
+#   zai-org/GLM-5.1                       (GLM 5.1)
+#   meta-llama/Llama-3.1-8B-Instruct      (always-on stable)
 #
 # Usage:
 #   echo "<prompt>" | hf-inference-bridge.sh [--model <id>] [--max-tokens N]
 set -u
-MODEL="Qwen/Qwen2.5-Coder-32B-Instruct"
+MODEL="meta-llama/Llama-3.1-8B-Instruct"
 MAX_TOKENS=2000
 TEMP=0.3
 PROMPT=""
@@ -23,14 +28,15 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --model)
             case "$2" in
-                fast|small)  MODEL="Qwen/Qwen2.5-Coder-7B-Instruct" ;;
-                code|coder)  MODEL="Qwen/Qwen2.5-Coder-32B-Instruct" ;;
-                big)         MODEL="Qwen/Qwen3-Coder-480B-A35B-Instruct" ;;
-                deepseek)    MODEL="deepseek-ai/DeepSeek-V3" ;;
-                llama)       MODEL="meta-llama/Llama-3.3-70B-Instruct" ;;
-                mistral)     MODEL="mistralai/Mistral-Small-24B-Instruct-2501" ;;
-                kimi)        MODEL="moonshotai/Kimi-K2.5" ;;
-                gpt-oss)     MODEL="openai/gpt-oss-120b" ;;
+                fast|small)  MODEL="meta-llama/Llama-3.1-8B-Instruct" ;;
+                code|coder)  MODEL="Qwen/Qwen3.6-35B-A3B" ;;
+                big)         MODEL="deepseek-ai/DeepSeek-V4-Pro" ;;
+                deepseek)    MODEL="deepseek-ai/DeepSeek-V4-Pro" ;;
+                llama)       MODEL="meta-llama/Llama-3.1-8B-Instruct" ;;
+                qwen)        MODEL="Qwen/Qwen3.6-35B-A3B" ;;
+                kimi)        MODEL="moonshotai/Kimi-K2.6" ;;
+                gemma)       MODEL="google/gemma-4-31B-it" ;;
+                glm)         MODEL="zai-org/GLM-5.1" ;;
                 *)           MODEL="$2" ;;
             esac; shift 2 ;;
         --max-tokens) MAX_TOKENS="$2"; shift 2 ;;
@@ -70,10 +76,11 @@ data = json.dumps(body).encode()
 last_err = ''
 for key in keys:
     req = urllib.request.Request(
-        'https://router.huggingface.co/hf-inference/v1/chat/completions',
+        'https://router.huggingface.co/v1/chat/completions',
         data=data,
         headers={
             'Content-Type':'application/json',
+            'User-Agent':'hermes-agent/1.0',
             'Authorization':'Bearer '+key,
         })
     try:
