@@ -352,8 +352,10 @@ python3 ~/.surrogate/bin/v2/bulk-mirror-coordinator.py seed >> "$LOG_DIR/bulk-mi
 # LOW_MEM tuned for cpu-basic 16GB after Round 9+10 OOM:
 # 0 bulk (full-download too heavy) + 2 streaming (lighter) on LOW_MEM
 # Anchor handles bulk via 24GB ARM headroom.
+# Tighter further after Round 11+12 OOM:
+# 1 streaming worker on LOW_MEM (was 2). Anchor takes the slack via 6 workers.
 BULK_WORKERS="${BULK_WORKERS:-$([[ "$LOW_MEM" == "1" ]] && echo 0 || echo 4)}"
-STREAM_WORKERS="${STREAM_WORKERS:-$([[ "$LOW_MEM" == "1" ]] && echo 2 || echo 4)}"
+STREAM_WORKERS="${STREAM_WORKERS:-$([[ "$LOW_MEM" == "1" ]] && echo 1 || echo 4)}"
 
 for i in $(seq 1 "$BULK_WORKERS"); do
     nohup bash ~/.surrogate/bin/v2/bulk-mirror-worker.sh "bulk-w$i" \
@@ -388,26 +390,25 @@ LOG="${HOME}/.surrogate/logs/cron.log"
 mkdir -p "$(dirname "$LOG")"
 while true; do
     M=$(($(date +%s) / 60))
-    # Every 2 min: continuous local dev (qwen3-coder when ready, else gemma)
-    [[ $((M % 2)) -eq 0 ]] && bash ~/.surrogate/bin/surrogate-dev-loop.sh 1 >> "$LOG" 2>&1 &
-    # Every 5 min: producer pushes priorities to Redis
-    [[ $((M % 5)) -eq 0 ]] && bash ~/.surrogate/bin/work-queue-producer.sh >> "$LOG" 2>&1 &
-    # Every 3 min: training-pair push to HF (drains ~/.surrogate/training-pairs.jsonl)
-    [[ $((M % 3)) -eq 0 ]] && bash ~/.surrogate/bin/push-training-to-hf.sh >> "$LOG" 2>&1 &
+    # Cron offsets STAGGERED — minute=0 burst was OOM trigger.
+    # Each major task picks a unique M%X==N offset so no two fire together.
+    [[ $((M % 2)) -eq 1 ]] && bash ~/.surrogate/bin/surrogate-dev-loop.sh 1 >> "$LOG" 2>&1 &
+    [[ $((M % 5)) -eq 2 ]] && bash ~/.surrogate/bin/work-queue-producer.sh >> "$LOG" 2>&1 &
+    [[ $((M % 3)) -eq 1 ]] && bash ~/.surrogate/bin/push-training-to-hf.sh >> "$LOG" 2>&1 &
     # auto-orchestrate now runs CONTINUOUSLY (4 parallel workers) — see step 7e below.
     # Cron entry retained for legacy single-fire boost (no harm if continuous already up):
     [[ $((M % 20)) -eq 0 ]] && pgrep -f "auto-orchestrate-continuous" >/dev/null || bash ~/.surrogate/bin/auto-orchestrate-loop.sh >> "$LOG" 2>&1 &
     # Every 30 min: research-apply (pop queue → orchestrate → ship feature)
     [[ $((M % 30)) -eq 15 ]] && bash ~/.surrogate/bin/surrogate-research-apply.sh >> "$LOG" 2>&1 &
     # Every 60 min: keyword tuner (adapts scrape queue based on yields)
-    [[ $((M % 60)) -eq 0 ]] && bash ~/.surrogate/bin/scrape-keyword-tuner.sh >> "$LOG" 2>&1 &
+    [[ $((M % 60)) -eq 4 ]] && bash ~/.surrogate/bin/scrape-keyword-tuner.sh >> "$LOG" 2>&1 &
     # Every 6 hours: research-loop (discover new features from competitors/papers)
     [[ $((M % 360)) -eq 30 ]] && bash ~/.surrogate/bin/surrogate-research-loop.sh >> "$LOG" 2>&1 &
     # Every 60 min: dataset enrich (pulls fresh public datasets, dedups, uploads to HF)
     # (was 4h — accelerated to drain 96-dataset queue ASAP per user request)
     [[ $((M % 60)) -eq 5 ]] && bash ~/.surrogate/bin/dataset-enrich.sh >> "$LOG" 2>&1 &
     # Every 15 min: self-ingest training-pairs into FTS index (closes self-improvement)
-    [[ $((M % 15)) -eq 0 ]] && bash ~/.surrogate/bin/surrogate-self-ingest.sh >> "$LOG" 2>&1 &
+    [[ $((M % 15)) -eq 3 ]] && bash ~/.surrogate/bin/surrogate-self-ingest.sh >> "$LOG" 2>&1 &
     # Every 30 min: build vector embeddings index (RAG semantic search)
     [[ $((M % 30)) -eq 12 ]] && bash ~/.surrogate/bin/rag-vector-builder.sh >> "$LOG" 2>&1 &
     # Every 30 min: synthetic data generation (REWORK→APPROVE DPO + distilabel rewrite)
