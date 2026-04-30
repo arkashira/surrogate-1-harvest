@@ -1,0 +1,121 @@
+name: Surrogate-1 Harvest Worker (GitHub Actions)
+
+# 3 GitHub accounts × 2,000 free min/mo = 6,000 min/mo CI compute on top of
+# the 4 HF Space harvest workers + 2 ZeroGPU synth endpoints. Each tick runs
+# a bounded chunk (~25 min) so we don't hit the 360-min job timeout.
+#
+# Runs on standard ubuntu-latest (2-core, 7GB RAM, 14GB SSD) — enough for
+# a single streaming-mirror-worker pulling from one HF dataset.
+#
+# Setup:
+#   1. Push this repo to any of your GitHub accounts.
+#   2. Set repo Secrets: HF_TOKEN_POOL (csv of all HF tokens), DISCORD_WEBHOOK
+#   3. Workflow auto-runs every 30 min + manual workflow_dispatch trigger.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'    # every 30 min — ~48 ticks/day per account
+  workflow_dispatch:
+    inputs:
+      worker_id:
+        description: 'override worker_id'
+        required: false
+        default: 'gh-actions-default'
+      max_samples:
+        description: 'max pairs to harvest this tick'
+        required: false
+        default: '50000'
+
+concurrency:
+  # Avoid concurrent identical runs that would race on the dedup DB
+  group: harvest-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install harvest deps
+        run: |
+          pip install --quiet \
+            "datasets>=3.0.0" \
+            "huggingface_hub>=0.25.0" \
+            "pyarrow>=15.0.0" \
+            "pandas>=2.0.0"
+
+      - name: Run streaming-mirror-worker
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_TOKEN_POOL: ${{ secrets.HF_TOKEN_POOL }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          WORKER_ID: ${{ github.event.inputs.worker_id || format('gh-actions-{0}-{1}', github.run_id, github.run_attempt) }}
+          MAX_SAMPLES: ${{ github.event.inputs.max_samples || '50000' }}
+        run: |
+          mkdir -p ~/.surrogate/data/bulk-mirror ~/.surrogate/state ~/.surrogate/logs
+          mkdir -p ~/.surrogate/bin/v2 ~/.surrogate/bin/lib
+          cp bin/v2/streaming-mirror-worker.sh ~/.surrogate/bin/v2/
+          cp bin/v2/bulk-mirror-coordinator.py ~/.surrogate/bin/v2/
+          cp bin/lib/*.py ~/.surrogate/bin/lib/ 2>/dev/null || true
+          cp bin/v2/bulk-datasets-massive.txt ~/.surrogate/bin/v2/ 2>/dev/null || true
+          cp bin/v2/trillion-token-sources.txt ~/.surrogate/bin/v2/ 2>/dev/null || true
+          chmod +x ~/.surrogate/bin/v2/*.sh
+          # Seed the queue from the source list (idempotent)
+          python3 ~/.surrogate/bin/v2/bulk-mirror-coordinator.py seed || true
+          # Run one bounded harvest cycle
+          bash ~/.surrogate/bin/v2/streaming-mirror-worker.sh "$WORKER_ID"
+        timeout-minutes: 22
+
+      - name: Push harvested chunk to HF Hub
+        if: always()
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python3 - <<'PYEOF'
+          import os, glob, time
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ.get("HF_TOKEN"))
+          shard_id = os.environ.get("WORKER_ID", "gh-default")[-3:]
+          ts = time.strftime("%Y-%m-%d/gh-%H%M%S")
+          n_pushed = 0
+          for fp in glob.glob(os.path.expanduser("~/.surrogate/data/bulk-mirror/*.jsonl")):
+              size = os.path.getsize(fp)
+              if size < 1024:
+                  continue
+              # Push to the appropriate sharded repo by hash
+              hash_n = sum(ord(c) for c in os.path.basename(fp)) % 5
+              repo = ["axentx/surrogate-1-training-pairs",
+                      "axentx/surrogate-1-pairs-A",
+                      "axentx/surrogate-1-pairs-B",
+                      "axentx/surrogate-1-pairs-C",
+                      "axentx/surrogate-1-pairs-D"][hash_n]
+              try:
+                  api.upload_file(
+                      path_or_fileobj=fp,
+                      path_in_repo=f"batches/public-merged/{ts}-{os.path.basename(fp)}",
+                      repo_id=repo, repo_type="dataset",
+                      commit_message=f"gh-actions: +{size//1024}KB from {shard_id}")
+                  n_pushed += 1
+                  print(f"  ✓ {fp} → {repo}")
+              except Exception as e:
+                  print(f"  ✗ {fp}: {e}")
+          print(f"\n  pushed {n_pushed} chunk(s)")
+          PYEOF
+
+      - name: Discord notify
+        if: success() && env.DISCORD_WEBHOOK != ''
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          curl -s -X POST -H "Content-Type: application/json" \
+            -d "{\"content\":\"🐙 gh-actions harvest worker ${{ github.run_id }} done\"}" \
+            "$DISCORD_WEBHOOK" >/dev/null || true
