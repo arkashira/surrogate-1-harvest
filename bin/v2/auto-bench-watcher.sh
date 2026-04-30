@@ -77,27 +77,22 @@ print(1 if any('adapter' in s for s in sib) else 0)
     fi
 
     if [[ "$has_adapter" == "1" ]]; then
-            log "✓ adapter detected on ${TARGET} after ${n_polls} polls "\
-"(${commits} commits) — firing bench"
-            notify "checkpoint detected → firing bench-v1-vs-v15"
-            touch "$MARKER"
+        log "✓ adapter detected on ${TARGET} after ${n_polls} polls (${n_files} files) — firing bench"
+        notify "checkpoint detected → firing bench-v1-vs-v15"
+        touch "$MARKER"
+        # Fire bench in background — it's long-running (~6-8 hr per model)
+        nohup bash "$HOME/.surrogate/hf-space/bin/v2/bench-v1-vs-v15.sh" \
+            >> "$HOME/.surrogate/logs/bench-v1-vs-v15.log" 2>&1 &
+        BENCH_PID=$!
+        log "bench-v1-vs-v15.sh spawned pid=${BENCH_PID}"
+        notify "bench pid=${BENCH_PID} started — full report in ~18-24 hr"
+        exit 0
+    fi
 
-            # Fire bench in background — it's long-running (~6-8 hr per model)
-            nohup bash "$HOME/.surrogate/hf-space/bin/v2/bench-v1-vs-v15.sh" \
-                >> "$HOME/.surrogate/logs/bench-v1-vs-v15.log" 2>&1 &
-            BENCH_PID=$!
-            log "bench-v1-vs-v15.sh spawned pid=${BENCH_PID}"
-            notify "bench pid=${BENCH_PID} started — full report in ~18-24 hr"
-            exit 0
-        else
-            log "poll ${n_polls}: ${commits} commits but no adapter file yet"
-        fi
-    else
-        if (( n_polls % 12 == 0 )); then
-            elapsed_min=$(( ($(date +%s) - START) / 60 ))
-            log "poll ${n_polls}: ${commits} commits (still waiting, "\
-"elapsed ${elapsed_min}m)"
-        fi
+    # Heartbeat every 12 polls (~1 hr at 5min interval)
+    if (( n_polls % 12 == 0 )); then
+        elapsed_min=$(( ($(date +%s) - START) / 60 ))
+        log "poll ${n_polls}: ${n_files} files (no adapter yet, elapsed ${elapsed_min}m)"
     fi
 
     sleep "$CHECK_INTERVAL_SEC"
