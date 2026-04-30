@@ -397,6 +397,8 @@ while true; do
     # Each major task picks a unique M%X==N offset so no two fire together.
     [[ $((M % 2)) -eq 1 ]] && bash ~/.surrogate/bin/surrogate-dev-loop.sh 1 >> "$LOG" 2>&1 &
     [[ $((M % 5)) -eq 2 ]] && bash ~/.surrogate/bin/work-queue-producer.sh >> "$LOG" 2>&1 &
+    # Auto-scaler — spawn/kill workers based on free memory tier (burst-but-don't-die)
+    [[ $((M % 5)) -eq 4 ]] && bash ~/.surrogate/bin/v2/auto-scaler.sh >> "$LOG" 2>&1 &
     # push-training-to-hf gated by memory (loads big shard into RAM).
     # Anchor (24GB) takes over when capacity arrives — see anchor cron-loop.
     [[ $((M % 3)) -eq 1 ]] && bash ~/.surrogate/bin/v2/memory-guard.sh \

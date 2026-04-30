@@ -198,7 +198,7 @@ while true; do
     CYCLE=$((CYCLE+1))
     for fn in "${SOURCE_FNS[@]}"; do
         $fn 2>>"$LOG" || true
-        sleep 8   # polite per-step throttle
+        sleep 4   # tighter — burst mode (was 8s)
     done
 
     # Re-seed coordinator every 10 cycles (~50 min) so newly-added rows enter queue
@@ -209,5 +209,5 @@ while true; do
         notify "cycle $CYCLE done — queue total $TOTAL sources"
     fi
 
-    sleep 30   # cycle gap (each full cycle ~5 min counting per-step sleeps)
+    sleep 10   # tighter cycle gap — burst mode (was 30s)
 done
