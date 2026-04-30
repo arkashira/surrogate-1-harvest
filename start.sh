@@ -197,40 +197,38 @@ redis-server --daemonize yes --port 6379 --bind 127.0.0.1 \
 sleep 1
 redis-cli -h 127.0.0.1 -p 6379 ping >> "$LOG_DIR/redis.log" 2>&1
 
-# ── 5. Ollama (background, CPU mode) ────────────────────────────────────────
-OLLAMA_MODELS="${HOME}/.ollama/models" \
-OLLAMA_HOST=127.0.0.1:11434 \
-nohup ollama serve > "$LOG_DIR/ollama.log" 2>&1 &
-sleep 6
-
-# Pull models only on first boot (cache lives in /data/.ollama/models).
-# Primary coding brain: qwen3-coder MoE (newest official Qwen coder; ~16GB Q4, 3B active = fast on CPU).
-# Fallback: qwen2.5-coder:14b (proven). Light: gemma4:e4b (kept for quick triage).
+# ── 5. Ollama — DISABLED on cpu-basic (16 GB limit) ───────────────────────
+# Root cause of 7-hr Runtime Error 2026-04-29: ollama loading qwen3-coder:30b
+# (~17 GB Q4) + qwen2.5-coder:14b (~9 GB) + granite (~5 GB) = ~31 GB of model
+# weights against a 16 GB cap → instant OOM on any inference.
 #
-# Note: user asked about "qwen3.6" — that's a community general-chat fine-tune,
-# not coder-specialized. qwen3-coder is the official Qwen team flagship for SDLC tasks.
-# SERIAL pulls — concurrent pulls saturate the 16GB CPU and stall everything else.
-# Background single chained job, not a parallel storm.
-(
-    if ! ollama list 2>/dev/null | grep -q "nomic-embed-text"; then
-        echo "[$(date +%H:%M:%S)] pulling nomic-embed-text (~270MB, fastest — RAG)" >> "$LOG_DIR/boot.log"
-        ollama pull nomic-embed-text > "$LOG_DIR/ollama-pull-embed.log" 2>&1
-    fi
-    if ! ollama list 2>/dev/null | grep -q "qwen2.5-coder:14b"; then
-        echo "[$(date +%H:%M:%S)] pulling qwen2.5-coder:14b (~9 GB, fallback brain)" >> "$LOG_DIR/boot.log"
-        ollama pull qwen2.5-coder:14b-instruct-q4_K_M > "$LOG_DIR/ollama-pull-fallback.log" 2>&1
-    fi
-    if ! ollama list 2>/dev/null | grep -q "qwen3-coder"; then
-        echo "[$(date +%H:%M:%S)] pulling qwen3-coder:30b-a3b (~16 GB MoE, primary brain)" >> "$LOG_DIR/boot.log"
-        ollama pull qwen3-coder:30b-a3b-instruct-q4_K_M > "$LOG_DIR/ollama-pull-coder.log" 2>&1
-    fi
-    if ! ollama list 2>/dev/null | grep -q "granite-code"; then
-        echo "[$(date +%H:%M:%S)] pulling granite-code:8b (~5 GB, IBM 128k ctx Apache)" >> "$LOG_DIR/boot.log"
-        ollama pull granite-code:8b-instruct > "$LOG_DIR/ollama-pull-granite.log" 2>&1
-    fi
-    # Skip devstral + yi-coder + qwen2.5-coder-32b for now — over 16GB CPU budget.
-    echo "[$(date +%H:%M:%S)] all model pulls done (serial, no CPU storm)" >> "$LOG_DIR/boot.log"
-) &
+# On cpu-basic the FREE LLM LADDER (cerebras/groq/openrouter/gemini/chutes)
+# is faster anyway — wafer-scale inference beats CPU x86 by 50-200×.
+# Ollama only worth running once Space upgrades to ≥cpu-upgrade (32 GB) OR
+# moves to OCI A1.Flex anchor (24 GB ARM, native ollama support).
+#
+# Set LOW_MEM=0 to re-enable on bigger Space tier.
+LOW_MEM="${LOW_MEM:-1}"
+if [[ "$LOW_MEM" == "1" ]]; then
+    echo "[$(date +%H:%M:%S)] ⚠ ollama SKIPPED (LOW_MEM=1, cpu-basic 16 GB)" \
+        >> "$LOG_DIR/boot.log"
+    echo "[$(date +%H:%M:%S)]   → free LLM ladder serves all v2 inference" \
+        >> "$LOG_DIR/boot.log"
+else
+    OLLAMA_MODELS="${HOME}/.ollama/models" \
+    OLLAMA_HOST=127.0.0.1:11434 \
+    nohup ollama serve > "$LOG_DIR/ollama.log" 2>&1 &
+    sleep 6
+    (
+        if ! ollama list 2>/dev/null | grep -q "nomic-embed-text"; then
+            ollama pull nomic-embed-text > "$LOG_DIR/ollama-pull-embed.log" 2>&1
+        fi
+        if ! ollama list 2>/dev/null | grep -q "qwen2.5-coder:3b"; then
+            # Smallest coder that's actually useful — fits any tier
+            ollama pull qwen2.5-coder:3b > "$LOG_DIR/ollama-pull-3b.log" 2>&1
+        fi
+    ) &
+fi
 
 # ── 6. Discord bot (only if egress to discord.com is reachable) ────────────
 # HF Spaces free tier may block egress to discord.com — bot would crash-loop.
@@ -245,43 +243,47 @@ if [[ -n "${DISCORD_BOT_TOKEN:-}" ]]; then
     fi
 fi
 
-# ── 7a. Continuous scrape daemon (parallel 8 workers, ~10s cool-down) ──────
-cat > /tmp/scrape-daemon.sh <<'SCRAPESH'
+# ── 7a. Continuous scrape daemon — concurrency tuned to LOW_MEM ────────────
+SCRAPE_PARALLEL="${SCRAPE_PARALLEL:-$([[ "$LOW_MEM" == "1" ]] && echo 2 || echo 8)}"
+cat > /tmp/scrape-daemon.sh <<SCRAPESH
 #!/bin/bash
-# 8 concurrent scrape workers, near-zero idle time.
 set -a; source ~/.hermes/.env 2>/dev/null; set +a
-LOG="${HOME}/.surrogate/logs/scrape-continuous.log"
-mkdir -p "$(dirname "$LOG")"
+LOG="\${HOME}/.surrogate/logs/scrape-continuous.log"
+mkdir -p "\$(dirname "\$LOG")"
 while true; do
-    START=$(date +%s)
-    bash ~/.surrogate/bin/domain-scrape-loop.sh 1500 8 >> "$LOG" 2>&1
-    DUR=$(( $(date +%s) - START ))
-    # Tight cool-downs — cloud has unlimited bandwidth, only rate-limit concern
-    if [[ $DUR -lt 30 ]]; then sleep 30          # queue likely exhausted, give it time
-    elif [[ $DUR -lt 120 ]]; then sleep 15
+    START=\$(date +%s)
+    bash ~/.surrogate/bin/domain-scrape-loop.sh 1500 ${SCRAPE_PARALLEL} >> "\$LOG" 2>&1
+    DUR=\$(( \$(date +%s) - START ))
+    if [[ \$DUR -lt 30 ]]; then sleep 30
+    elif [[ \$DUR -lt 120 ]]; then sleep 15
     else sleep 5
     fi
 done
 SCRAPESH
 chmod +x /tmp/scrape-daemon.sh
 nohup /tmp/scrape-daemon.sh > "$LOG_DIR/scrape-daemon.log" 2>&1 &
-echo "[$(date +%H:%M:%S)] continuous scrape daemon (parallel=8) started" >> "$LOG_DIR/boot.log"
+echo "[$(date +%H:%M:%S)] scrape daemon parallel=${SCRAPE_PARALLEL} (LOW_MEM=$LOW_MEM)" >> "$LOG_DIR/boot.log"
 
-# ── 7b. Agentic crawler (general web URL frontier + BFS link discovery) ────
-nohup bash ~/.surrogate/bin/agentic-crawler.sh 6 > "$LOG_DIR/agentic-crawler.log" 2>&1 &
-echo "[$(date +%H:%M:%S)] agentic crawler started (parallel=6)" >> "$LOG_DIR/boot.log"
+# ── 7b. Agentic crawler ────────────────────────────────────────────────────
+CRAWLER_PARALLEL="${CRAWLER_PARALLEL:-$([[ "$LOW_MEM" == "1" ]] && echo 2 || echo 6)}"
+nohup bash ~/.surrogate/bin/agentic-crawler.sh "$CRAWLER_PARALLEL" > "$LOG_DIR/agentic-crawler.log" 2>&1 &
+echo "[$(date +%H:%M:%S)] agentic crawler parallel=$CRAWLER_PARALLEL" >> "$LOG_DIR/boot.log"
 
-# ── 7b2. GitHub-specific agentic crawler (4 PATs × 5000/h = 20K req/h) ─────
+# ── 7b2. GitHub-specific agentic crawler (lightweight — keep on) ───────────
 nohup bash ~/.surrogate/bin/github-agentic-crawler.sh > "$LOG_DIR/github-agentic-crawler.log" 2>&1 &
-echo "[$(date +%H:%M:%S)] github-agentic-crawler started (token pool maximized)" >> "$LOG_DIR/boot.log"
+echo "[$(date +%H:%M:%S)] github-agentic-crawler started" >> "$LOG_DIR/boot.log"
 
-# ── 7b3. HF Dataset Discoverer (continuous mega-mix hunt) ───────────────────
+# ── 7b3. HF Dataset Discoverer ─────────────────────────────────────────────
 nohup bash ~/.surrogate/bin/hf-dataset-discoverer.sh > "$LOG_DIR/hf-dataset-discoverer.log" 2>&1 &
-echo "[$(date +%H:%M:%S)] hf-dataset-discoverer started (continuous mega-mix hunt)" >> "$LOG_DIR/boot.log"
+echo "[$(date +%H:%M:%S)] hf-dataset-discoverer started" >> "$LOG_DIR/boot.log"
 
-# ── 7e. CONTINUOUS auto-orchestrate (4 parallel workers, no cron gap) ───────
-nohup bash ~/.surrogate/bin/auto-orchestrate-continuous.sh > "$LOG_DIR/auto-orchestrate-continuous.log" 2>&1 &
-echo "[$(date +%H:%M:%S)] auto-orchestrate-continuous started (4 parallel workers, never sleeps)" >> "$LOG_DIR/boot.log"
+# ── 7e. auto-orchestrate-continuous — DISABLED on LOW_MEM (cron handles it) ─
+if [[ "$LOW_MEM" != "1" ]]; then
+    nohup bash ~/.surrogate/bin/auto-orchestrate-continuous.sh > "$LOG_DIR/auto-orchestrate-continuous.log" 2>&1 &
+    echo "[$(date +%H:%M:%S)] auto-orchestrate-continuous started (4 parallel workers)" >> "$LOG_DIR/boot.log"
+else
+    echo "[$(date +%H:%M:%S)] ⚠ auto-orchestrate-continuous SKIPPED (LOW_MEM); cron slot at M%20==0 covers it" >> "$LOG_DIR/boot.log"
+fi
 
 # ── 7e1. SELF-HEAL WATCHDOG — must start BEFORE memory-hungry workers ───────
 # Monitors RAM usage every 60s; preempts youngest dataset-enrich shard if
@@ -332,11 +334,12 @@ echo "[$(date +%H:%M:%S)] skill-synthesis daemon started" >> "$LOG_DIR/boot.log"
 # 100+ massive datasets in bin/v2/bulk-datasets-massive.txt (code/security/SDLC/agent/etc).
 # Lease-based claims (15 min) — crashes auto-expire so other workers pick up.
 python3 ~/.surrogate/bin/v2/bulk-mirror-coordinator.py seed >> "$LOG_DIR/bulk-mirror-seed.log" 2>&1 || true
-for i in 1 2 3 4; do
+BULK_WORKERS="${BULK_WORKERS:-$([[ "$LOW_MEM" == "1" ]] && echo 1 || echo 4)}"
+for i in $(seq 1 "$BULK_WORKERS"); do
     nohup bash ~/.surrogate/bin/v2/bulk-mirror-worker.sh "bulk-w$i" \
         > "$LOG_DIR/bulk-worker-$i.log" 2>&1 &
 done
-echo "[$(date +%H:%M:%S)] bulk-mirror coordinator + 4 workers started (100+ datasets queued)" >> "$LOG_DIR/boot.log"
+echo "[$(date +%H:%M:%S)] bulk-mirror coordinator + $BULK_WORKERS workers started (100+ datasets queued, LOW_MEM=$LOW_MEM)" >> "$LOG_DIR/boot.log"
 
 # ── 7d. Train-ready pusher — disabled at boot for now. Caused Space
 #       RUNTIME_ERROR on first deployment (2026-04-29). Script kept at
