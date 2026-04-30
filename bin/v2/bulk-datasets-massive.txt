@@ -152,3 +152,94 @@ KodCode/KodCode-V1|code|447000|1
 # ─── MEGA-MIX FOR LATER ───────────────────────────────────────────────────────
 allenai/tulu-3-sft-personas-instruction-following|sft|30000|2
 NeelNanda/pile-10k|web|10000|3
+
+# ─── Round 7 (2026-04-30) — ADDITIONAL frontier-aligned datasets ──────────────
+
+# NuminaMath family (huge reasoning corpus, beats LIMO/s1K alone)
+AI-MO/NuminaMath-1.5|reasoning|860000|1
+AI-MO/NuminaMath-CoT|reasoning|860000|1
+HuggingFaceH4/numina-math-cot|reasoning|860000|1
+AI-MO/NuminaMath-TIR|reasoning|72000|1
+
+# o1-style high-quality long-CoT traces (Stratos, Sky-T1)
+bespokelabs/Bespoke-Stratos-17k|reasoning|17000|1
+NovaSky-AI/Sky-T1_data_17k|reasoning|17000|1
+NovaSky-AI/Sky-T1_preference_data_10k|dpo|10000|1
+qfq/train1k|reasoning|1000|1
+amphora/QwQ-LongCoT-130K|reasoning|130000|1
+
+# R1 distill / OpenScience class
+nvidia/OpenScience|reasoning|500000|1
+PrimeIntellect/SYNTHETIC-1|reasoning|500000|1
+Skywork/Skywork-OR1-RL-Data|reasoning|400000|1
+Asap7772/cog_behav_all_strategies|reasoning|150000|1
+RLHFlow/Mistral-PRM-Data|reasoning|240000|1
+RLHFlow/Math-DPO-10K|dpo|10000|1
+PRIME-RL/Eurus-2-RL-Data|reasoning|480000|1
+
+# Agent traces — frontier (CogAgent / Agent-FLAN)
+THUDM/AgentInstruct|agent|125000|1
+internlm/Agent-FLAN|agent|24000|1
+HuggingFaceH4/LRM-tool-traces|agent|10000|1
+glaiveai/glaive-function-calling-v2|tool|113000|1
+glaiveai/glaive-code-assistant-v3|tool|136000|1
+glaiveai/RAG-v1|agent|50000|1
+
+# Code — bigcode v2 dedup'd + execution-validated
+bigcode/the-stack-v2-dedup|code|2000000|1
+Vezora/Tested-22k-Python-Alpaca|code|22000|1
+Vezora/Tested-188k-Python-Alpaca|code|188000|1
+WizardLMTeam/WizardLM_evol_instruct_70k|code|70000|1
+WizardLMTeam/WizardLM_evol_instruct_V2_196k|code|196000|1
+m-a-p/Code-Feedback|code|175000|1
+m-a-p/CodeFeedback-Filtered-Instruction|code|150000|1
+Crystalcareai/MoD|code|200000|2
+ajibawa-2023/Code-290k-ShareGPT|code|290000|2
+HuggingFaceTB/stack-edu-tags|code|120000|2
+
+# Cybersecurity / SOC / DevSecOps deeper
+trendmicro-ailab/Primus-Seed|security|100000|1
+trendmicro-ailab/Primus-Pretraining|security|1000000|1
+AlignmentResearch/LongHorizonRedTeaming|safety|10000|1
+walledai/HarmBench|safety|3200|1
+walledai/WildGuardMix|safety|92000|1
+allenai/WildChat-1M-Full|sft|1000000|2
+allenai/wildchat-50m-sft|sft|50000000|2
+flan/flan-v2|sft|500000|2
+
+# Long-context / mixed-context training mixes
+togethercomputer/Long-Data-Collections|web|1000000|2
+LDJnr/Capybara|sft|15500|1
+THUDM/LongCite-45k|reasoning|45000|2
+THUDM/LongAlign-10k|sft|10000|2
+TIGER-Lab/LongRAG|reasoning|14000|2
+
+# Science / paper / proof
+hails/proof-pile-2|math|22000000|2
+EleutherAI/proof-pile|math|13000000|2
+camel-ai/math|math|50000|2
+camel-ai/physics|reasoning|20000|2
+camel-ai/chemistry|reasoning|20000|2
+camel-ai/biology|reasoning|20000|2
+
+# DevOps niche
+HuggingFaceH4/MATH-500|math|500|1
+HuggingFaceH4/aime_2024|math|30|1
+livecodebench/test_generation|code|800|1
+livecodebench/execution|code|800|1
+livecodebench/code_execution|code|800|1
+codeparrot/github-code|code|500000|2
+bigcode/commitpack|code|2000000|2
+bigcode/commitpackft|code|700000|1
+
+# Conversational / multi-turn high quality
+LDJnr/Pure-Dove|sft|3800|1
+allenai/openassistant-guanaco-reformatted|sft|9800|2
+HuggingFaceH4/orca-math-word-problems-200k|math|200000|2
+microsoft/orca-math-word-problems-200k|math|200000|2
+
+# Synthetic frontier-distilled
+NousResearch/dolphin-2.9.4-llama3.1-8b-r1-distill|sft|1000000|2
+mlabonne/orpo-dpo-mix-40k|dpo|44000|1
+argilla/distilabel-intel-orca-dpo-pairs|dpo|12000|2
+argilla/dpo-mix-7k|dpo|7400|2
