@@ -65,9 +65,41 @@ if ! pgrep -f "continuous-discoverer.sh" >/dev/null; then
     echo "[$(date '+%H:%M:%S')] continuous-discoverer started (anchor, never exits)" >> "$LOG"
 fi
 
+# auto-orchestrate-continuous — 4 parallel dev-chain workers on axentx repos.
+# (Disabled on HF Space cpu-basic LOW_MEM; anchor 24GB ARM runs it just fine.)
+if [[ -x "${REPO}/bin/auto-orchestrate-continuous.sh" ]] \
+   && ! pgrep -f "auto-orchestrate-continuous" >/dev/null; then
+    nohup bash "${REPO}/bin/auto-orchestrate-continuous.sh" \
+        > "/data/logs/auto-orchestrate-continuous.log" 2>&1 &
+    echo "[$(date '+%H:%M:%S')] auto-orchestrate-continuous started (4 dev-chain workers on axentx)" >> "$LOG"
+fi
+
 # ── Cron loop ──────────────────────────────────────────────────────────
 while true; do
     M=$(($(date +%s) / 60))
+
+    # ── Dev-chain on axentx projects (Round 1-4 originals + always-on) ─
+    # Continuous workers (above) handle most; cron entries are belt-and-suspenders.
+    [[ $((M % 2))   -eq 0 ]]   && bash "${REPO}/bin/surrogate-dev-loop.sh" 1 >>"$LOG" 2>&1 &
+    [[ $((M % 5))   -eq 0 ]]   && bash "${REPO}/bin/work-queue-producer.sh"   >>"$LOG" 2>&1 &
+    [[ $((M % 3))   -eq 0 ]]   && bash "${REPO}/bin/push-training-to-hf.sh"   >>"$LOG" 2>&1 &
+    [[ $((M % 20))  -eq 0 ]]   && {
+        if ! pgrep -f "auto-orchestrate-continuous" >/dev/null; then
+            bash "${REPO}/bin/auto-orchestrate-loop.sh" >>"$LOG" 2>&1 &
+        fi
+    }
+    [[ $((M % 30))  -eq 15 ]]  && bash "${REPO}/bin/surrogate-research-apply.sh" >>"$LOG" 2>&1 &
+    [[ $((M % 360)) -eq 30 ]]  && bash "${REPO}/bin/surrogate-research-loop.sh"  >>"$LOG" 2>&1 &
+    [[ $((M % 60))  -eq 5 ]]   && bash "${REPO}/bin/dataset-enrich.sh"           >>"$LOG" 2>&1 &
+    [[ $((M % 15))  -eq 0 ]]   && bash "${REPO}/bin/surrogate-self-ingest.sh"    >>"$LOG" 2>&1 &
+    [[ $((M % 30))  -eq 12 ]]  && bash "${REPO}/bin/rag-vector-builder.sh"       >>"$LOG" 2>&1 &
+    [[ $((M % 30))  -eq 7 ]]   && bash "${REPO}/bin/synthetic-data-from-rework.sh" >>"$LOG" 2>&1 &
+    [[ $((M % 1440)) -eq 240 ]] && bash "${REPO}/bin/refresh-cve-feed.sh"        >>"$LOG" 2>&1 &
+    [[ $((M % 1440)) -eq 300 ]] && bash "${REPO}/bin/scrape-sre-postmortems.sh"  >>"$LOG" 2>&1 &
+    [[ $((M % 1440)) -eq 360 ]] && python3 "${REPO}/bin/expand-role-keywords.py" >>"$LOG" 2>&1 &
+    # Anchor-only: heavy training submitters (Lightning H200 / Kaggle T4)
+    [[ $((M % 90))  -eq 5 ]]   && bash "${REPO}/bin/kaggle-trainer.sh"           >>"$LOG" 2>&1 &
+    [[ $((M % 360)) -eq 45 ]]  && bash "${REPO}/bin/lightning-trainer.sh"        >>"$LOG" 2>&1 &
 
     # ── Round 5 (sustainability loops) ─────────────────────────────────
     [[ $((M % 360)) -eq 90 ]]   && bash "${REPO}/bin/v2/self-improve-loop.sh"     >>"$LOG" 2>&1 &
