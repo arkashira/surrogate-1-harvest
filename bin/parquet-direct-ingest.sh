@@ -96,7 +96,7 @@ try:
         row = {c: table.column(c)[i].as_py() for c in cols}
         # Detect schema by available columns + extract prompt+response
         if 'text' in cols:
-            text = str(row.get('text','') or '')[:8000]
+            text = str(row.get('text','') or '')[:200000]
             if len(text) < 500: skipped += 1; continue
             # Web-text quality filter
             if not any(s in text for s in ('?','\`\`\`','# ','## ')) and not any(s in text.lower() for s in ('step ','first,','to solve','function ','def ','class ')):
@@ -110,10 +110,10 @@ try:
             response = text
         elif 'instruction' in cols and 'response' in cols:
             prompt = str(row.get('instruction','') or '')[:4000]
-            response = str(row.get('response','') or '')[:8000]
+            response = str(row.get('response','') or '')[:200000]
             if len(prompt) < 30 or len(response) < 30: skipped += 1; continue
         elif 'content' in cols and 'language' in cols:
-            code = str(row.get('content','') or '')[:6000]
+            code = str(row.get('content','') or '')[:100000]
             lang = str(row.get('language','') or 'code')
             if len(code) < 80 or len(code) > 6000: skipped += 1; continue
             prompt = f'Explain this {lang} code:'
@@ -130,7 +130,7 @@ try:
                 'ts': time.time(),
                 'source': f'parquet:{src_repo}',
                 'parquet_shard': '\$shard_name',
-                'prompt': prompt[:8000],
+                'prompt': prompt[:100000],
                 'response': response[:12000],
             }, ensure_ascii=False) + '\n')
         written += 1

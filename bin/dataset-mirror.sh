@@ -313,8 +313,8 @@ for src_id, slug in SOURCES:
                 if not r and row.get("answer"):
                     r = str(row["answer"])
 
-                p = str(p).strip()[:6000]
-                r = str(r).strip()[:8000]
+                p = str(p).strip()[:100000]
+                r = str(r).strip()[:200000]
                 if len(p) < 20 or len(r) < 30:
                     continue
                 if not is_relevant(p, r):

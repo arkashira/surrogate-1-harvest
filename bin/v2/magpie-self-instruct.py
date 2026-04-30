@@ -154,8 +154,8 @@ def main():
                 continue
 
             fout.write(json.dumps({
-                "prompt": user_q[:6000],
-                "response": asst_r[:8000],
+                "prompt": user_q[:100000],
+                "response": asst_r[:200000],
                 "source": f"magpie-{use_model}",
                 "domain_persona": sys_prompt,
                 "ts": datetime.utcnow().isoformat(),

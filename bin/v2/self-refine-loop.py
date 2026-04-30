@@ -113,8 +113,8 @@ def process(prompt: str) -> dict | None:
         return None
 
     return {
-        "prompt": prompt[:6000],
-        "response": answer[:6000],
+        "prompt": prompt[:100000],
+        "response": answer[:200000],
         "source": "self-refine",
         "meta": {
             "iterations_used": len(history),

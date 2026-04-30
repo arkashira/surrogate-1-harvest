@@ -132,7 +132,7 @@ def _trace_to_pair(prompt_ctx: str, traces: list[dict]) -> dict | None:
         return None
     return {
         "prompt": prompt_ctx[:4000],
-        "response": asst_text[:6000],
+        "response": asst_text[:200000],
         "source": "tool-trace",
         "meta": {
             "n_calls": len(traces),

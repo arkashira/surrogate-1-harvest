@@ -157,8 +157,8 @@ def synthesize_trace(prompt: str, gold: str) -> dict | None:
         return None
 
     return {
-        "prompt": prompt[:6000],
-        "response": trace[:8000],
+        "prompt": prompt[:100000],
+        "response": trace[:200000],
         "source": "verify-trace",
         "meta": {"domain": domain, "n_probes": len(probes)},
     }

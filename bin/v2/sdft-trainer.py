@@ -121,8 +121,8 @@ def process(prompt: str, gold: str) -> dict | None:
     if not filter_pair(prompt, distilled)["keep"]:
         return None
     return {
-        "prompt": prompt[:6000],
-        "response": distilled[:6000],
+        "prompt": prompt[:100000],
+        "response": distilled[:200000],
         "source": "sdft",
         "meta": {
             "y_hat_len": len(y_hat),

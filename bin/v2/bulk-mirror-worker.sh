@@ -66,7 +66,7 @@ with open(out_path, "w") as f:
             a = next((m.get("content","") or m.get("value","") for m in msgs if m.get("role") in ("assistant","gpt") or m.get("from") in ("assistant","gpt")), "")
             if u and a: p, r = u, a
         if not p or not r: continue
-        p, r = str(p)[:6000].strip(), str(r)[:8000].strip()
+        p, r = str(p)[:100000].strip(), str(r)[:200000].strip()
         if len(p) < 20 or len(r) < 30: continue
         v = filter_pair(p, r)
         if not v["keep"]: continue

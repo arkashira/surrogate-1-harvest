@@ -114,7 +114,7 @@ with open(out_path, "a") as f:
                 p, r = t[:cut].strip(), t[cut:].strip()
             else:
                 continue
-        p = str(p)[:6000].strip(); r = str(r)[:8000].strip()
+        p = str(p)[:100000].strip(); r = str(r)[:200000].strip()
         if len(p) < 20 or len(r) < 30: continue
         v = filter_pair(p, r)
         if not v["keep"]: continue
