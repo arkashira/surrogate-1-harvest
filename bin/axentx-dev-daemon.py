@@ -95,7 +95,18 @@ def repo_context(project: str) -> tuple[str, str, str]:
     return git_log, readme, prior
 
 
+MAX_REVIEW_BACKLOG = int(os.environ.get("DEV_MAX_REVIEW_BACKLOG", "15"))
+
+
 def do_one_cycle() -> bool:
+    # Throttle: if reviewer hasn't caught up, don't pile on more dev output.
+    # Pipeline naturally rate-limits to slowest consumer this way.
+    review_q = REPO_ROOT / "state" / "swarm-shared" / "review-queue"
+    n_pending = len(list(review_q.glob("*.json"))) if review_q.exists() else 0
+    if n_pending >= MAX_REVIEW_BACKLOG:
+        log("dev", f"backpressure: review-queue {n_pending} ≥ {MAX_REVIEW_BACKLOG}, idle")
+        return False
+
     cursor = load_cursor()
     project = ROTATION[cursor["rotation_idx"] % len(ROTATION)]
     focus = FOCUS_CYCLE[cursor["focus_idx"] % len(FOCUS_CYCLE)]
