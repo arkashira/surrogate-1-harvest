@@ -75,8 +75,13 @@ def get_json(url, timeout=8):
 def post_discord(msg, color=0x808080):
     if not DISCORD: return
     body = json.dumps({"embeds": [{"description": msg[:1900], "color": color, "timestamp": datetime.datetime.utcnow().isoformat()}]}).encode()
+    # Discord rejects requests without a recognizable User-Agent (403 Forbidden).
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "DiscordBot (https://github.com/arkashira/surrogate-1-harvest, 1.0)",
+    }
     try:
-        urllib.request.urlopen(urllib.request.Request(DISCORD, data=body, headers={"Content-Type": "application/json"}), timeout=8)
+        urllib.request.urlopen(urllib.request.Request(DISCORD, data=body, headers=headers), timeout=8)
     except Exception as e: print(f"[wd] discord fail: {e}", flush=True)
 
 def shutdown(*_): print("[wd] stopping", flush=True); sys.exit(0)
