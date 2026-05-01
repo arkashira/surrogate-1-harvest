@@ -110,6 +110,17 @@ while True:
                 issues.append(f"⚠ {sp} stage=SLEEPING (HTTP {e.code})")
             else:
                 issues.append(f"HF probe fail for {sp}: HTTP {e.code}")
+        except (TimeoutError, socket.timeout) as e:
+            # Container hung at HTTP layer — alert ONCE then cool down so we
+            # don't spam Discord every 5 min about the same broken Space.
+            # Real fix is on the user's side (restart the Space from HF UI),
+            # so re-alerting before cooldown expires has no value.
+            if _repo_cooldown.get(sp, 0) <= time.time():
+                # First time we see this — fire one alert, then start cooldown.
+                issues.append(f"⚠ {sp} HTTP layer hung (timeout >20s) — needs restart")
+                _repo_cooldown[sp] = time.time() + COOLDOWN_SEC
+            else:
+                n_cooldown += 1
         except Exception as e:
             issues.append(f"HF probe fail for {sp}: {type(e).__name__}: {str(e)[:80]}")
     # 2. Coordinator (if env set)
