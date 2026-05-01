@@ -255,7 +255,10 @@ def fail(item: dict, src_path: Path, actor: str, err: str) -> None:
 
 
 def daemon_loop(role: str, poll_sec: int, work_fn) -> None:
-    """Generic daemon main — never returns. Polls input queue, runs work_fn."""
+    """Generic daemon main — never returns. Polls input queue, runs work_fn.
+    OOM-hardened: explicit gc + RSS check + bail-out before kill."""
+    import gc
+    import resource
     import signal
     def shutdown(*_):
         log(role, "shutdown signal")
@@ -263,7 +266,9 @@ def daemon_loop(role: str, poll_sec: int, work_fn) -> None:
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
 
-    log(role, f"start — poll every {poll_sec}s")
+    # MemoryMax in systemd is 64M; we self-restart at 48M to avoid hard kill
+    SOFT_RSS_KB = int(os.environ.get("DAEMON_SOFT_RSS_KB", "49152"))  # 48 MB
+    log(role, f"start — poll every {poll_sec}s, RSS soft cap {SOFT_RSS_KB} KB")
     n_processed = 0
     n_idle = 0
     while True:
@@ -272,12 +277,24 @@ def daemon_loop(role: str, poll_sec: int, work_fn) -> None:
         except Exception as e:
             log(role, f"⚠ exception: {type(e).__name__}: {e}")
             did_work = False
+
+        # Explicit GC after every cycle — Python releases memory only when
+        # threshold hit; we want it to release immediately after LLM blob.
+        gc.collect()
+
+        # RSS check — if approaching limit, exit gracefully so systemd
+        # restarts us with fresh heap (cheaper than getting OOM-killed).
+        rss_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if rss_kb > SOFT_RSS_KB:
+            log(role, f"RSS {rss_kb} KB > soft cap {SOFT_RSS_KB} KB — graceful restart")
+            sys.exit(0)  # systemd Restart=always brings us back, fresh heap
+
         if did_work:
             n_processed += 1
             n_idle = 0
-            time.sleep(2)  # tiny delay after work, then immediately check again
+            time.sleep(2)
         else:
             n_idle += 1
             if n_idle % 20 == 1:
-                log(role, f"idle (processed={n_processed} cycles)")
+                log(role, f"idle (processed={n_processed} cycles, RSS={rss_kb} KB)")
             time.sleep(poll_sec)
