@@ -14,7 +14,7 @@
 #   No args → all 6 axentx repos.
 set -euo pipefail
 
-REPOS=("${@:-axentx/Costinel axentx/vanguard axentx/airship axentx/workio axentx/axiomops axentx/surrogate-1}")
+REPOS=("${@:-axentx/Costinel axentx/vanguard axentx/airship axentx/workio axentx/surrogate-1}")
 
 read -r -d '' PAYLOAD <<'JSON' || true
 {

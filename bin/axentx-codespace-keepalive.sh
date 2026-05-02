@@ -54,8 +54,19 @@ while true; do
             state=$(GH_TOKEN=$tok gh codespace view -c "$name" --json state -q .state 2>/dev/null || echo "unknown")
             if [ "$state" != "Available" ]; then
                 log "  [$acct] state=$state — starting"
-                GH_TOKEN=$tok gh codespace start -c "$name" >/dev/null 2>&1
-                sleep 10
+                # Capture start output so we know if it actually triggered
+                start_out=$(GH_TOKEN=$tok gh codespace start -c "$name" 2>&1 | tail -1)
+                log "    start: ${start_out:-no-output}"
+                # Codespaces take 30-90s to fully boot + ollama start. Poll up
+                # to 120s before giving up so /api/tags returns 200, not 502.
+                for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+                    sleep 10
+                    state2=$(GH_TOKEN=$tok gh codespace view -c "$name" --json state -q .state 2>/dev/null || echo "?")
+                    if [ "$state2" = "Available" ]; then
+                        log "    [$acct] became Available after ${i}0s"
+                        break
+                    fi
+                done
             fi
             r=$(curl -s -o /dev/null -w "%{http_code}/%{time_total}s" -m 12 "$url/api/tags" 2>/dev/null || echo "fail")
             log "  [$acct/$name] $state → $r"

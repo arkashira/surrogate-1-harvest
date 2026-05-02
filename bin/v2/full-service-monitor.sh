@@ -51,7 +51,6 @@ LOCAL_PROJECTS=(
     "$HOME/axentx/surrogate"
     "$HOME/axentx/workio"
     "$HOME/axentx/hermes-toolbelt"
-    "$HOME/axentx/axiomops"
 )
 BRIDGES=(
     "cerebras" "groq" "gemini" "chutes" "openrouter"

@@ -43,7 +43,6 @@ declare -A REPOS=(
     [arkship]="https://x-access-token:${ARK_TOK}@github.com/arkashira/arkship.git"
     [surrogate]="https://x-access-token:${ARK_TOK}@github.com/arkashira/surrogate.git"
     [workio]="https://x-access-token:${ARK_TOK}@github.com/arkashira/workio.git"
-    [axiomops]="https://x-access-token:${AX_TOK}@github.com/AXENTX/axiomops.git"
     [surrogate-1]="https://x-access-token:${AX_TOK}@github.com/AXENTX/surrogate-1.git"
 )
 
