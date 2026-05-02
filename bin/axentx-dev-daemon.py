@@ -249,6 +249,16 @@ def do_one_cycle() -> bool:
             out = call_llm(prompt, system=DEV_SYSTEM, max_tokens=DEV_BUDGET, timeout=45)
     except Exception as e:
         log("dev", f"✗ LLM failed: {e}")
+        # CRITICAL: advance cursor EVEN ON FAILURE so we don't get stuck
+        # hammering the same project repeatedly. Observed 2026-05-02:
+        # workio cycle hit LLM 429 storm → cursor frozen on workio →
+        # every subsequent cycle re-tries workio → 60+ min commit drought.
+        # Fix: rotate project on failure so other projects get a chance
+        # while LLM cools off. Failed project will get its turn next round.
+        cursor["rotation_idx"] = (cursor["rotation_idx"] + 1) % len(ROTATION)
+        if cursor["rotation_idx"] == 0:
+            cursor["focus_idx"] = (cursor["focus_idx"] + 1) % len(FOCUS_CYCLE)
+        save_cursor(cursor)
         return False
 
     # Persist as decision record for future context

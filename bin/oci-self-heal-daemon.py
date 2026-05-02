@@ -42,6 +42,7 @@ SERVICES = {
     "axentx-pain-validator-daemon": "cross-source pain validation gate",
     "axentx-skill-synthesizer-daemon": "auto-synth skills + papers from failure patterns",
     "axentx-hf-flusher-daemon": "D1 → HF Datasets batched flush",
+    "axentx-v1-warmup-daemon": "Surrogate-1 v1 HF Space keep-warm",
 }
 
 

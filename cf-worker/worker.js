@@ -52,6 +52,7 @@ const RATE_LIMIT_PER_MIN = 100;
 const RATE_LIMIT_EXEMPT_PATHS = new Set([
   "/health", "/", "/status", "/metrics", "/agent/heartbeat",
   "/seen/check", "/seen/mark", "/harvest/post", "/harvest/stats",
+  "/queue/push", "/queue/claim", "/queue/advance", "/queue/stats",
 ]);
 
 const json = (obj, status = 200, extraHeaders = {}) =>
@@ -457,6 +458,94 @@ export default {
           renderDashboard(stats, datasets, spaces, a.results || [], traces.results || []),
           { headers: { "Content-Type": "text/html; charset=utf-8", ...CORS, "X-Trace-Id": traceId } }
         );
+      }
+
+      // POST /queue/push  — write a pipeline item to D1 (any VM can read).
+      // Body: {id, stage, project?, focus?, payload}
+      // (User directive: 'Cross-VM pipeline queues — review/qa/commit
+      // currently per-VM ... let GCP-produced items get reviewed by Kamatera
+      // and vice-versa')
+      if (path === "/queue/push" && request.method === "POST") {
+        let body;
+        try { body = await request.json(); }
+        catch (_) { return new Response("bad json", { status: 400 }); }
+        const id = String(body.id || "");
+        const stage = String(body.stage || "");
+        if (!id || !stage) return new Response("missing id/stage", { status: 400 });
+        await env.DB.prepare(
+          `INSERT INTO pipeline_items (id, stage, project, focus, payload, updated_at)
+           VALUES (?, ?, ?, ?, ?, unixepoch())
+           ON CONFLICT(id) DO UPDATE SET
+             stage=excluded.stage, payload=excluded.payload,
+             updated_at=unixepoch(), claimed_by=NULL, claimed_at=NULL`
+        ).bind(
+          id, stage,
+          String(body.project || ""), String(body.focus || ""),
+          JSON.stringify(body.payload || {})
+        ).run();
+        return json({ ok: true, id }, 200, { ...CORS });
+      }
+
+      // POST /queue/claim — atomically claim oldest unclaimed item in a stage.
+      // Body: {stage, claimer, ttl_sec?}
+      // Returns: {item: {...}} or {item: null}
+      if (path === "/queue/claim" && request.method === "POST") {
+        let body;
+        try { body = await request.json(); }
+        catch (_) { return new Response("bad json", { status: 400 }); }
+        const stage = String(body.stage || "");
+        const claimer = String(body.claimer || "");
+        const ttl = parseInt(body.ttl_sec) || 600;
+        if (!stage || !claimer) return new Response("missing", { status: 400 });
+        const now = Math.floor(Date.now() / 1000);
+        // Stale claim threshold: claimed > ttl ago = stale, eligible for re-claim
+        const staleBefore = now - ttl;
+        // Single-statement claim using UPDATE...RETURNING (D1 supports it).
+        const r = await env.DB.prepare(
+          `UPDATE pipeline_items
+           SET claimed_by = ?, claimed_at = ?
+           WHERE id = (
+             SELECT id FROM pipeline_items
+             WHERE stage = ?
+               AND (claimed_by IS NULL OR claimed_at < ?)
+             ORDER BY created_at ASC LIMIT 1
+           )
+           RETURNING id, stage, project, focus, payload, created_at`
+        ).bind(claimer, now, stage, staleBefore).first().catch(() => null);
+        if (!r) return json({ item: null }, 200, { ...CORS });
+        try { r.payload = JSON.parse(r.payload || "{}"); } catch (_) {}
+        return json({ item: r }, 200, { ...CORS });
+      }
+
+      // POST /queue/advance — finish current item, push to next stage atomically.
+      // Body: {id, next_stage, payload?}  (payload merges into existing)
+      if (path === "/queue/advance" && request.method === "POST") {
+        let body;
+        try { body = await request.json(); }
+        catch (_) { return new Response("bad json", { status: 400 }); }
+        const id = String(body.id || "");
+        const next = String(body.next_stage || "");
+        if (!id || !next) return new Response("missing", { status: 400 });
+        const payload = body.payload !== undefined
+          ? JSON.stringify(body.payload) : null;
+        const sql = payload
+          ? `UPDATE pipeline_items SET stage=?, payload=?, claimed_by=NULL,
+             claimed_at=NULL, updated_at=unixepoch() WHERE id=?`
+          : `UPDATE pipeline_items SET stage=?, claimed_by=NULL,
+             claimed_at=NULL, updated_at=unixepoch() WHERE id=?`;
+        const stmt = payload
+          ? env.DB.prepare(sql).bind(next, payload, id)
+          : env.DB.prepare(sql).bind(next, id);
+        await stmt.run();
+        return json({ ok: true }, 200, { ...CORS });
+      }
+
+      // GET /queue/stats — depth per stage
+      if (path === "/queue/stats" && request.method === "GET") {
+        const r = await env.DB.prepare(
+          "SELECT stage, COUNT(*) AS n FROM pipeline_items GROUP BY stage ORDER BY n DESC"
+        ).all().catch(() => ({ results: [] }));
+        return json(r.results || [], 200, { ...CORS });
       }
 
       // POST /seen/check  — bulk-check fingerprints against shared dedup

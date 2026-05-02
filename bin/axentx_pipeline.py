@@ -164,120 +164,210 @@ def _call_cf_workers_ai(messages: list, max_tokens: int, timeout: int,
     return d["result"]["response"]
 
 
+# Per-provider 429 cooldown registry. When a provider returns 429 or 402,
+# skip it for COOLDOWN_SEC seconds. Process-local; cleared on restart.
+# (User directive 2026-05-02: 'ทำไมไม่สลับใช้ fallback อัตโนมัติ' — this
+# fixes the cascade where call N+1 still hits the same dead provider.)
+_PROVIDER_COOLDOWN: dict[str, float] = {}
+_COOLDOWN_DEFAULT = 120.0    # 2 min default cooldown after rate-limit
+_COOLDOWN_PAYMENT = 86400.0  # 24h after 402 (account drained, won't recover today)
+
+
+def _provider_ready(name: str) -> bool:
+    until = _PROVIDER_COOLDOWN.get(name, 0)
+    return until <= time.time()
+
+
+def _cooldown(name: str, sec: float | None = None) -> None:
+    sec = sec if sec is not None else _COOLDOWN_DEFAULT
+    _PROVIDER_COOLDOWN[name] = time.time() + sec
+
+
+def _hf_inference(messages: list, max_tokens: int, timeout: int,
+                  model: str = "meta-llama/Meta-Llama-3.1-70B-Instruct") -> str:
+    """Hugging Face Serverless Inference API — free tier ~1k req/h.
+    OpenAI-compatible chat completions endpoint at /v1.
+    Different infra from CF/Groq/etc → independent rate-limit budget."""
+    tok = os.environ.get("HF_TOKEN", "")
+    if not tok:
+        raise RuntimeError("no HF_TOKEN")
+    url = "https://router.huggingface.co/v1/chat/completions"
+    body = {"model": model, "messages": messages,
+            "max_tokens": max_tokens, "temperature": 0.3}
+    req = urllib.request.Request(
+        url, data=json.dumps(body).encode(),
+        headers={"Authorization": f"Bearer {tok}",
+                 "Content-Type": "application/json",
+                 "User-Agent": UA_BROWSER},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        d = json.loads(r.read())
+    return d["choices"][0]["message"]["content"]
+
+
 def call_llm(prompt: str, system: str = "", max_tokens: int = 1500,
              timeout: int = 30) -> str:
-    """11-provider fallback chain — burns through providers until one works.
-    Order optimized: best-quality / fastest / largest free quota first.
-    For SHORT prompts (<SHORT_PROMPT_THRESHOLD chars) we prepend Cloudflare
-    Workers AI Llama-3.1-8B because it's fast/cheap and adequate for triage-
-    sized work; long prompts skip it and go straight to the quality chain."""
-    # Prepare messages once — used for both fast-path and main chain.
+    """Multi-provider fallback chain with per-provider cooldown.
+
+    Order: fastest free → 70B class free → CF Workers AI → Gemini → HF
+    Inference → Surrogate-1 v1 (LAST resort, ALWAYS tried even when v1
+    quality is lower than alternatives, per user directive 2026-05-02:
+    'ให้ตายยังไงมันก็มี model ทำงานได้').
+
+    Per-provider cooldown: any 429/402/5xx puts the provider in cooldown
+    for 2 min (rate limit) or 24 h (payment). Other calls during cooldown
+    skip the dead provider — no more 'try Groq, fail, try Cerebras, fail,
+    try Groq again' cascades.
+    """
     messages = []
     if system:
         messages.append({"role": "system", "content": system[:4000]})
     messages.append({"role": "user", "content": prompt[:8000]})
 
     # Fast path: short prompts get Workers AI first.
-    if len(prompt) < SHORT_PROMPT_THRESHOLD:
+    if len(prompt) < SHORT_PROMPT_THRESHOLD and _provider_ready("CF-AI-fastpath"):
         try:
             return _call_cf_workers_ai(messages, max_tokens, timeout)
         except Exception:
-            pass  # fall through to full chain
+            _cooldown("CF-AI-fastpath", 60)
 
-    # OpenAI-compatible providers (Chat Completions API shape)
+    # OpenAI-compatible providers.
     chains = [
-        ("Groq", "https://api.groq.com/openai/v1/chat/completions",
+        ("Groq",          "https://api.groq.com/openai/v1/chat/completions",
          os.environ.get("GROQ_API_KEY"), "llama-3.3-70b-versatile"),
-        ("Cerebras", "https://api.cerebras.ai/v1/chat/completions",
-         os.environ.get("CEREBRAS_API_KEY"), "llama3.1-8b"),
-        ("SambaNova", "https://api.sambanova.ai/v1/chat/completions",
+        ("Cerebras",      "https://api.cerebras.ai/v1/chat/completions",
+         os.environ.get("CEREBRAS_API_KEY"), "llama-3.3-70b"),
+        ("SambaNova",     "https://api.sambanova.ai/v1/chat/completions",
          os.environ.get("SAMBANOVA_API_KEY"), "Meta-Llama-3.3-70B-Instruct"),
-        ("NVIDIA-NIM", "https://integrate.api.nvidia.com/v1/chat/completions",
+        ("NVIDIA-NIM",    "https://integrate.api.nvidia.com/v1/chat/completions",
          os.environ.get("NVIDIA_NIM_API_KEY") or os.environ.get("NVIDIA_API_KEY"),
          "meta/llama-3.3-70b-instruct"),
-        ("Kimi", "https://api.moonshot.ai/v1/chat/completions",
+        ("Kimi-K2",       "https://api.moonshot.ai/v1/chat/completions",
          os.environ.get("KIMI_API_KEY") or os.environ.get("MOONSHOT_API_KEY"),
-         "moonshot-v1-8k"),
-        ("xAI", "https://api.x.ai/v1/chat/completions",
-         os.environ.get("GROK_API_KEY") or os.environ.get("XAI_API_KEY"),
-         "grok-2-1212"),
-        # Chutes removed 2026-05-02 (account balance $0 — every call 402).
-        ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions",
+         "kimi-k2-instruct"),
+        ("OpenRouter",    "https://openrouter.ai/api/v1/chat/completions",
          os.environ.get("OPENROUTER_API_KEY"),
          "meta-llama/llama-3.3-70b-instruct:free"),
         ("GitHub-Models", "https://models.inference.ai.azure.com/chat/completions",
          os.environ.get("GITHUB_MODELS_TOKEN"), "gpt-4o-mini"),
+        # Mistral free tier — separate budget pool from everything above.
+        ("Mistral",       "https://api.mistral.ai/v1/chat/completions",
+         os.environ.get("MISTRAL_API_KEY"), "mistral-small-latest"),
     ]
-    payload = {"messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
+    # Skip providers in cooldown — round-robin to first available.
+    chains_ready = [c for c in chains if c[2] and _provider_ready(c[0])]
     last_err = None
-    for name, url, key, model in chains:
-        if not key:
-            continue
+    payload = {"messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
+    for name, url, key, model in chains_ready:
         body = dict(payload, model=model)
         req = urllib.request.Request(
             url, data=json.dumps(body).encode(),
             headers={
                 "Authorization": f"Bearer {key}",
                 "Content-Type": "application/json",
-                # Cerebras sits behind Cloudflare which 403s/1010 unknown UAs
-                # when payload contains non-ASCII (Thai, emoji). Use a
-                # browser-style UA so the WAF lets us through.
-                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "User-Agent": UA_BROWSER,
             },
         )
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 d = json.loads(r.read())
                 return d["choices"][0]["message"]["content"]
-        except (urllib.error.HTTPError, urllib.error.URLError, KeyError,
-                TimeoutError, json.JSONDecodeError) as e:
-            last_err = f"{name}/{model}: {e}"
+        except urllib.error.HTTPError as e:
+            if e.code == 402:
+                _cooldown(name, _COOLDOWN_PAYMENT)
+            elif e.code == 429:
+                # Honor Retry-After if present
+                ra = e.headers.get("Retry-After") if hasattr(e, "headers") else None
+                _cooldown(name, int(ra) if (ra and ra.isdigit()) else _COOLDOWN_DEFAULT)
+            elif 500 <= e.code < 600:
+                _cooldown(name, 60)
+            last_err = f"{name}/{model}: HTTP {e.code}"
+            continue
+        except (urllib.error.URLError, KeyError, TimeoutError,
+                json.JSONDecodeError) as e:
+            _cooldown(name, 60)
+            last_err = f"{name}/{model}: {type(e).__name__}: {str(e)[:60]}"
             continue
 
-    # Cloudflare Workers AI — 12th provider, 10k neurons/day free
-    # Different API shape (path-based model + Cloudflare wrapper) so handled
-    # outside the OpenAI-compatible loop above. Free tier covers ~hundreds of
-    # short completions per day → useful as last-line resilience when all the
-    # 8 OpenAI-compatible providers have rate-limited / errored.
-    cf_token = os.environ.get("CLOUDFLARE_API_TOKEN")
-    cf_acct = os.environ.get("CLOUDFLARE_ACCOUNT_ID")
-    if cf_token and cf_acct:
-        cf_model = os.environ.get("CF_AI_MODEL", "@cf/meta/llama-3.1-8b-instruct")
+    # Cloudflare Workers AI (8B) — 9th provider, 10k neurons/day free
+    if _provider_ready("CF-AI"):
+        cf_token = os.environ.get("CLOUDFLARE_API_TOKEN")
+        cf_acct = os.environ.get("CLOUDFLARE_ACCOUNT_ID")
+        if cf_token and cf_acct:
+            cf_model = os.environ.get("CF_AI_MODEL", "@cf/meta/llama-3.1-8b-instruct")
+            try:
+                req = urllib.request.Request(
+                    f"https://api.cloudflare.com/client/v4/accounts/{cf_acct}/ai/run/{cf_model}",
+                    data=json.dumps({"messages": messages, "max_tokens": max_tokens}).encode(),
+                    headers={"Authorization": f"Bearer {cf_token}",
+                             "Content-Type": "application/json"},
+                )
+                with urllib.request.urlopen(req, timeout=timeout) as r:
+                    d = json.loads(r.read())
+                    if d.get("success"):
+                        return d["result"]["response"]
+                    last_err = f"CF-AI/{cf_model}: {d.get('errors')}"
+                    _cooldown("CF-AI", 60)
+            except urllib.error.HTTPError as e:
+                if e.code in (429, 402):
+                    _cooldown("CF-AI", _COOLDOWN_DEFAULT)
+                last_err = f"CF-AI/{cf_model}: HTTP {e.code} (after {last_err})"
+            except Exception as e:
+                _cooldown("CF-AI", 60)
+                last_err = f"CF-AI/{cf_model}: {e} (after {last_err})"
+
+    # HF Serverless Inference API (Llama-3.1-70B) — 10th provider, free tier
+    # ~1k req/h, separate budget from everything above.
+    if _provider_ready("HF-Inference"):
         try:
-            req = urllib.request.Request(
-                f"https://api.cloudflare.com/client/v4/accounts/{cf_acct}/ai/run/{cf_model}",
-                data=json.dumps({"messages": messages, "max_tokens": max_tokens}).encode(),
-                headers={
-                    "Authorization": f"Bearer {cf_token}",
-                    "Content-Type": "application/json",
-                },
-            )
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                d = json.loads(r.read())
-                if d.get("success"):
-                    return d["result"]["response"]
-                last_err = f"CF-AI/{cf_model}: {d.get('errors')}"
+            return _hf_inference(messages, max_tokens, timeout)
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 503):
+                _cooldown("HF-Inference", _COOLDOWN_DEFAULT)
+            last_err = f"HF-Inference: HTTP {e.code} (after {last_err})"
         except Exception as e:
-            last_err = f"CF-AI/{cf_model}: {e} (after {last_err})"
+            _cooldown("HF-Inference", 60)
+            last_err = f"HF-Inference: {e} (after {last_err})"
 
     # Gemini (different API shape — handled separately)
-    try:
-        return _call_gemini(prompt, system, max_tokens, timeout)
-    except Exception as e:
-        last_err = f"Gemini: {e} (after {last_err})"
+    if _provider_ready("Gemini"):
+        try:
+            return _call_gemini(prompt, system, max_tokens, timeout)
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 402):
+                _cooldown("Gemini", _COOLDOWN_DEFAULT)
+            last_err = f"Gemini: HTTP {e.code} (after {last_err})"
+        except Exception as e:
+            _cooldown("Gemini", 60)
+            last_err = f"Gemini: {e} (after {last_err})"
 
     # Last-resort fallback: own Surrogate-1 v1 LoRA via ZeroGPU Space.
-    # User directive (2026-05-02 clarified): "ให้มันเป็น fallback ของทั้งหมด
-    # เมื่อมันไม่เหลือที่ให้ใช้แล้ว ก็ต้องใช้" — degraded answer beats
-    # no-answer when every other provider is dead. Default ON; opt out
-    # via USE_V1_FALLBACK=0 only for eval runs where we want hard failure.
-    if os.environ.get("USE_V1_FALLBACK", "1") == "1":
+    # User directive (2026-05-02): 'ให้ตายยังไงมันก็มี model ทำงานได้'.
+    # Default ON. Cooldown short so we keep retrying — a single 503 from
+    # the Space sleeping shouldn't drop us out of the chain.
+    if os.environ.get("USE_V1_FALLBACK", "1") == "1" and _provider_ready("v1"):
         try:
             full = (system + "\n\n" + prompt) if system else prompt
             return _call_surrogate_v1(full, timeout=max(timeout, 60))
         except Exception as e:
+            _cooldown("v1", 60)
             last_err = f"surrogate-v1: {e} (after {last_err})"
-    raise RuntimeError(f"all LLM providers failed; last={last_err}")
+
+    # If we reach here, EVERY provider including v1 is in cooldown. Reset
+    # cooldowns and try v1 one more time as absolute last resort —
+    # better degraded answer than dropped pipeline cycle.
+    if os.environ.get("USE_V1_FALLBACK", "1") == "1":
+        _PROVIDER_COOLDOWN.pop("v1", None)
+        try:
+            full = (system + "\n\n" + prompt) if system else prompt
+            return _call_surrogate_v1(full, timeout=max(timeout, 90))
+        except Exception as e:
+            last_err = f"surrogate-v1 final: {e} (after {last_err})"
+
+    raise RuntimeError(
+        f"all LLM providers failed; last={last_err}; "
+        f"cooldowns: {sorted([k for k,v in _PROVIDER_COOLDOWN.items() if v > time.time()])}"
+    )
 
 
 # Top-tier reasoning models — used for DECISION GATES (BD verdicts, release
@@ -318,14 +408,14 @@ def call_llm_strong(prompt: str, system: str = "", max_tokens: int = 2000,
                     timeout: int = 60, allow_degrade: bool = False) -> str:
     """Decision-grade LLM call — top-tier reasoning models only.
 
-    Use this for BD verdicts, release approvals, root-cause analysis,
-    architecture decisions. Skips Workers AI fast-path + small models +
-    surrogate-1 v1 fallback.
+    Use for BD verdicts, release approvals, root-cause analysis. Skips
+    fast-path 8B + surrogate-1 v1.
 
-    If `allow_degrade=True` and every strong provider fails, falls
-    through to the regular `call_llm()` (wider provider net, mid-tier
-    quality). Default False — surface the failure so the caller can
-    decide policy.
+    Per-provider cooldown shared with call_llm — if Groq is rate-limited
+    here, call_llm also skips it. Auto-fallthrough on 429/402.
+
+    `allow_degrade=True`: if every strong provider is in cooldown, fall
+    through to standard call_llm (which has CF-AI 8B + HF Inference + v1).
     """
     messages: list[dict] = []
     if system:
@@ -333,7 +423,9 @@ def call_llm_strong(prompt: str, system: str = "", max_tokens: int = 2000,
     messages.append({"role": "user", "content": prompt[:16000]})
     errors: list[str] = []
     for name, url, env_key, model in _STRONG_CHAIN:
-        # Some keys have alternates — handle the common aliases gracefully
+        if not _provider_ready(name):
+            errors.append(f"{name}: cooldown")
+            continue
         key = (os.environ.get(env_key)
                or (os.environ.get("XAI_API_KEY") if env_key == "GROK_API_KEY" else None)
                or (os.environ.get("NVIDIA_API_KEY") if env_key == "NVIDIA_NIM_API_KEY" else None))
@@ -355,13 +447,21 @@ def call_llm_strong(prompt: str, system: str = "", max_tokens: int = 2000,
                 d = json.loads(r.read())
                 return d["choices"][0]["message"]["content"]
         except urllib.error.HTTPError as e:
+            if e.code == 402:
+                _cooldown(name, _COOLDOWN_PAYMENT)
+            elif e.code == 429:
+                ra = e.headers.get("Retry-After") if hasattr(e, "headers") else None
+                _cooldown(name, int(ra) if (ra and ra.isdigit()) else _COOLDOWN_DEFAULT)
+            elif 500 <= e.code < 600:
+                _cooldown(name, 60)
             try:
-                detail = e.read().decode()[:200]
+                detail = e.read().decode()[:120]
             except Exception:
                 detail = ""
             errors.append(f"{name}: HTTP {e.code} {detail}")
         except Exception as e:
-            errors.append(f"{name}: {type(e).__name__}: {str(e)[:80]}")
+            _cooldown(name, 60)
+            errors.append(f"{name}: {type(e).__name__}: {str(e)[:60]}")
     if allow_degrade:
         try:
             return call_llm(prompt, system, max_tokens, timeout)
