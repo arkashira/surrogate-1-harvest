@@ -50,3 +50,43 @@ CREATE TABLE IF NOT EXISTS space_health (
     ts          INTEGER NOT NULL DEFAULT (unixepoch())
 );
 CREATE INDEX IF NOT EXISTS idx_space_health_ts ON space_health(ts DESC);
+
+-- Round 4 (2026-05-02) — feature batch
+-- #42 distributed tracing: trace_id on audit_log
+ALTER TABLE audit_log ADD COLUMN trace_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_audit_trace ON audit_log(trace_id);
+
+-- #36 canary results
+CREATE TABLE IF NOT EXISTS canary_runs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    trace_id    TEXT,
+    success     INTEGER NOT NULL,
+    latency_ms  INTEGER,
+    errors      TEXT,
+    ts          INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_canary_ts ON canary_runs(ts DESC);
+
+-- #99 pricing A/B click tracking
+CREATE TABLE IF NOT EXISTS experiment_clicks (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    experiment_key  TEXT NOT NULL,
+    variant         TEXT NOT NULL,
+    target          TEXT,
+    ip_hash         TEXT,
+    ts              INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_exp_clicks_key_ts ON experiment_clicks(experiment_key, ts DESC);
+
+-- #77 audit log immutability — block UPDATE and DELETE on audit_log
+DROP TRIGGER IF EXISTS audit_log_no_update;
+CREATE TRIGGER audit_log_no_update BEFORE UPDATE ON audit_log
+BEGIN
+  SELECT RAISE(ABORT, 'audit_log is append-only');
+END;
+
+DROP TRIGGER IF EXISTS audit_log_no_delete;
+CREATE TRIGGER audit_log_no_delete BEFORE DELETE ON audit_log
+BEGIN
+  SELECT RAISE(ABORT, 'audit_log is append-only');
+END;

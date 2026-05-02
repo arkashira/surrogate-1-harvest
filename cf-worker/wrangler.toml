@@ -25,4 +25,6 @@ max_batch_size = 10
 max_retries = 3
 
 [triggers]
-crons = ["*/5 * * * *"]
+# */5  — HF Space health probes (writes space_health)
+# */15 — synthetic canary end-to-end smoke test (writes canary_runs)
+crons = ["*/5 * * * *", "*/15 * * * *"]
