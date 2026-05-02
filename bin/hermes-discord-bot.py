@@ -22,6 +22,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import discord
+from discord.ext import tasks
 
 HOME = Path.home()
 LOG_PATH = HOME / ".surrogate/logs/hermes-discord-bot.log"
@@ -176,6 +177,7 @@ def chunk(text: str) -> list[str]:
 intents = discord.Intents.default()
 intents.message_content = True
 intents.dm_messages = True
+intents.reactions = True
 client = discord.Client(intents=intents)
 
 
@@ -183,6 +185,8 @@ client = discord.Client(intents=intents)
 async def on_ready():
     log.info(f"connected as {client.user} (id={client.user.id})")
     print(f"[discord-bot] connected as {client.user}", flush=True)
+    if not check_pending_polls.is_running():
+        check_pending_polls.start()
 
 
 @client.event
@@ -218,6 +222,113 @@ async def on_message(msg: discord.Message):
         except discord.HTTPException as e:
             log.error(f"discord send failed: {e}")
             break
+
+
+
+# ─── Customer-poll integration (two-way: Supabase ↔ Discord) ───────────────
+# customer-poll-daemon enqueues into Supabase customer_polls table.
+# Bot reads pending polls every 10min, posts via bot client (NOT webhook,
+# webhooks are one-way), adds 3 emoji reactions, and listens for clicks
+# via on_raw_reaction_add to tally votes back into the same Supabase row.
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SUPABASE_KEY = os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get("SUPABASE_SERVICE_KEY", "")
+POLL_CHANNEL_ID = int(os.environ.get("DISCORD_POLL_CHANNEL_ID", "0") or 0)
+
+POLL_EMOJI = {"✅": "yes", "❌": "no", "🤔": "maybe"}
+
+
+def _sb_request(method: str, path: str, body=None, headers_extra=None):
+    if not (SUPABASE_URL and SUPABASE_KEY):
+        return None
+    h = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "User-Agent": "surrogate-1-discord-bot/1.0 (+server)",
+    }
+    if headers_extra:
+        h.update(headers_extra)
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(f"{SUPABASE_URL}/rest/v1/{path}", data=data, method=method, headers=h)
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            raw = r.read()
+            return json.loads(raw) if raw else []
+    except Exception as e:
+        log.error(f"supabase {method} {path}: {e}")
+        return None
+
+
+@tasks.loop(minutes=10)
+async def check_pending_polls():
+    """Pull rows from customer_polls where status='pending', post each, mark posted."""
+    if not POLL_CHANNEL_ID:
+        return
+    rows = _sb_request("GET", "customer_polls?status=eq.pending&order=created_at.asc&limit=5")
+    if not rows:
+        return
+    channel = client.get_channel(POLL_CHANNEL_ID)
+    if channel is None:
+        log.warning(f"poll channel {POLL_CHANNEL_ID} not found")
+        return
+    for poll in rows:
+        try:
+            qs = poll.get("questions") or []
+            text = (
+                "🔬 **Weekly customer poll**\n\n"
+                f"**Hypothesis**: {poll.get('hypothesis','?')}\n\n" +
+                "\n".join(f"**Q{i+1}:** {q}" for i, q in enumerate(qs)) +
+                "\n\nReact: ✅ yes  •  ❌ no  •  🤔 maybe"
+            )
+            msg = await channel.send(text[:1900])
+            for emo in POLL_EMOJI:
+                await msg.add_reaction(emo)
+            _sb_request(
+                "PATCH",
+                f"customer_polls?id=eq.{poll['id']}",
+                {"posted_to": str(POLL_CHANNEL_ID),
+                 "posted_msg_id": str(msg.id),
+                 "status": "posted",
+                 "posted_at": "now()"},
+                headers_extra={"Prefer": "return=minimal"},
+            )
+            log.info(f"poll posted msg_id={msg.id} item={poll.get('item_id','?')[:30]}")
+        except Exception as e:
+            log.error(f"failed to post poll {poll.get('id')}: {e}")
+
+
+@check_pending_polls.before_loop
+async def _wait_ready():
+    await client.wait_until_ready()
+
+
+@client.event
+async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
+    """Tally votes when users click ✅ ❌ 🤔 on a tracked poll message."""
+    if payload.user_id == client.user.id:
+        return
+    emo = str(payload.emoji)
+    if emo not in POLL_EMOJI:
+        return
+    rows = _sb_request("GET", f"customer_polls?posted_msg_id=eq.{payload.message_id}&select=id")
+    if not rows:
+        return
+    poll_id = rows[0]["id"]
+    col = f"{POLL_EMOJI[emo]}_count"
+    # SQL increment via PostgREST: use rpc or fetch+update.
+    cur = _sb_request("GET", f"customer_polls?id=eq.{poll_id}&select={col}")
+    if not cur:
+        return
+    n = (cur[0].get(col) or 0) + 1
+    _sb_request(
+        "PATCH",
+        f"customer_polls?id=eq.{poll_id}",
+        {col: n},
+        headers_extra={"Prefer": "return=minimal"},
+    )
+    log.info(f"poll vote {emo}={n} on poll_id={poll_id} (msg={payload.message_id})")
+
 
 
 def main():
