@@ -87,7 +87,7 @@ hf_cache_vol = modal.Volume.from_name("surrogate1-hf-cache", create_if_missing=T
 
 @app.function(
     image=image,
-    gpu="H100-80GB",
+    gpu="H100",
     timeout=24 * 3600,  # 24h max per function run
     cpu=8,
     memory=64 * 1024,  # 64 GB RAM
