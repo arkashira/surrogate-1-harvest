@@ -404,23 +404,55 @@ export default {
         );
       }
 
-      // /dash/agents — live status grid of every reporting daemon (KV-backed)
-      // (User directive 2026-05-02: "ดู agent ทั้งหมด แล้วดูว่าใครต้องทำงาน
-      //  เมื่อไหร่ตอนไหน")
-      if (path === "/dash/agents" && request.method === "GET") {
-        const list = await env.HEARTBEAT.list({ prefix: "agent:", limit: 200 });
-        const agents = [];
-        for (const k of (list.keys || [])) {
-          try {
-            const v = await env.HEARTBEAT.get(k.name, { type: "json" });
-            if (v) agents.push(v);
-          } catch (_) {}
+      // POST /agent/heartbeat — daemons UPSERT their status here.
+      // Migrated from CF KV (1000 writes/day free) to D1 (100k writes/day).
+      // Auth: shared HMAC token via X-Heartbeat-Token header (HEARTBEAT_AUTH).
+      if (path === "/agent/heartbeat" && request.method === "POST") {
+        const tok = request.headers.get("X-Heartbeat-Token") || "";
+        if (env.HEARTBEAT_AUTH && tok !== env.HEARTBEAT_AUTH) {
+          return new Response("unauthorized", { status: 401 });
         }
-        agents.sort((a, b) => (a.agent || "").localeCompare(b.agent || ""));
-        const now = Math.floor(Date.now() / 1000);
+        let body;
+        try { body = await request.json(); }
+        catch (_) { return new Response("bad json", { status: 400 }); }
+        const a = body.agent || "";
+        if (!a) return new Response("missing agent", { status: 400 });
+        await env.DB.prepare(
+          `INSERT INTO agent_status (agent, host, pid, state, task, cycle_n, last_error, started_at, last_seen)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, unixepoch())
+           ON CONFLICT(agent) DO UPDATE SET
+             host=excluded.host, pid=excluded.pid, state=excluded.state,
+             task=excluded.task, cycle_n=excluded.cycle_n,
+             last_error=excluded.last_error, last_seen=unixepoch()`
+        ).bind(
+          a, body.host || "", body.pid || 0,
+          body.state || "", body.task || "",
+          body.cycle_n || 0, body.last_error || "",
+          body.started_at || ""
+        ).run();
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { "Content-Type": "application/json", ...CORS },
+        });
+      }
+
+      // /dash/agents — live status grid (D1-backed; was KV until 2026-05-02
+      // when we hit the 1000/day free-tier write limit at 30 daemons × 60s).
+      // User directive 2026-05-02: "ดู agent ทั้งหมด แล้วดูว่าใครต้องทำงาน
+      // เมื่อไหร่ตอนไหน"
+      if (path === "/dash/agents" && request.method === "GET") {
+        const since = Math.floor(Date.now() / 1000) - 600; // last 10min window
+        const r = await env.DB.prepare(
+          `SELECT agent, host, pid, state, task, cycle_n, last_error,
+                  started_at, last_seen
+           FROM agent_status
+           WHERE last_seen >= ?
+           ORDER BY agent ASC`
+        ).bind(since).all().catch(() => ({ results: [] }));
+        const agents = r.results || [];
         const rows = agents.map(a => {
-          const lastSeenMs = a.last_seen ? Date.parse(a.last_seen) : 0;
-          const ageSec = lastSeenMs ? Math.floor((Date.now() - lastSeenMs) / 1000) : 9999;
+          const ageSec = a.last_seen
+            ? Math.max(0, Math.floor(Date.now() / 1000) - Number(a.last_seen))
+            : 9999;
           const stale = ageSec > 120;
           const stateColor = a.state === "error" ? "#c33"
             : stale ? "#888"

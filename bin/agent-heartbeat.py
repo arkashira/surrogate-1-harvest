@@ -4,27 +4,30 @@ Purpose (user directive 2026-05-02):
   > "แล้วจะรู้ว่า agent ไหนทำงานตอนไหน"
   > "ดู agent ทั้งหมด แล้วดูว่าใครต้องทำงานเมื่อไหร่ตอนไหน"
 
-How it works:
+How it works (D1-backed, post-2026-05-02):
   Each daemon calls heartbeat("research-1", state="working", task="reddit:devops")
-  on every cycle. That writes a single key to Cloudflare KV (namespace
-  HEARTBEAT_KV) with:
-    {agent, host, pid, state, task, last_seen, cycle_n, ...}
-  TTL 5 min — stale rows auto-expire so dead daemons drop off the dashboard.
+  on every cycle. That POSTs to the surrogate-1-cursor worker at
+  /agent/heartbeat which UPSERTs into D1 table agent_status. The worker
+  returns 200 on success, fail-silent on the daemon side.
 
-  The CF Worker exposes /dash/agents which fans out KV.list() and renders
-  a live grid of every reporting agent.
+  /dash/agents reads `WHERE last_seen >= now-600s` from D1 and renders.
 
-Why CF KV (not Supabase):
-  KV is HTTPS-reachable from any VM (no IPv6/pooler issues), reads from
-  the worker's own runtime are zero-latency, and the free tier is plenty
-  for ~30 agents × heartbeat-every-60s = ~43k writes/day (well under 1M).
+Why D1 (not KV any more):
+  KV free-tier is 1000 writes/day account-wide. With 30 daemons × 60s
+  heartbeat = 43,200/day → blown by lunch. D1 free is 100k writes/day
+  per database; same 30 × 60s pattern = ~9% of free quota. Easily fits.
+
+Why D1 over Supabase:
+  Worker has D1 binding pre-configured + zero-latency local read for
+  /dash/agents. Adding Supabase would mean another HTTPS hop on every
+  page render. Plus shared CDN egress with the rest of the worker.
 
 Design notes:
   - Fail-silent — heartbeat MUST NOT break the agent. Network blip → skip
     one tick, retry next cycle.
   - Background thread — heartbeat runs every HEARTBEAT_SEC in the
     background after start_heartbeat() so the agent's main loop is never
-    blocked on a CF API call.
+    blocked on an HTTP call.
 """
 from __future__ import annotations
 
@@ -37,11 +40,12 @@ import time
 import urllib.error
 import urllib.request
 
-CF_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
-CF_ACCT = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
-KV_ID = os.environ.get("HEARTBEAT_KV_ID", "")  # CF namespace ID
+WORKER_URL = os.environ.get(
+    "HEARTBEAT_WORKER_URL",
+    "https://surrogate-1-cursor.ashira.workers.dev/agent/heartbeat",
+)
+HEARTBEAT_AUTH = os.environ.get("HEARTBEAT_AUTH", "")
 HEARTBEAT_SEC = int(os.environ.get("HEARTBEAT_SEC", "60"))
-HEARTBEAT_TTL = int(os.environ.get("HEARTBEAT_TTL", "300"))  # 5 min
 HOSTNAME = socket.gethostname()
 
 _state: dict = {
@@ -60,18 +64,16 @@ _thread: threading.Thread | None = None
 _stop_evt = threading.Event()
 
 
-def _kv_put(key: str, value: dict) -> None:
-    """Write to CF KV with TTL. Best-effort, swallow all errors."""
-    if not (CF_TOKEN and CF_ACCT and KV_ID):
+def _post_heartbeat(value: dict) -> None:
+    """POST to worker /agent/heartbeat. Best-effort, swallow all errors."""
+    if not WORKER_URL:
         return
-    url = (f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCT}"
-           f"/storage/kv/namespaces/{KV_ID}/values/{key}"
-           f"?expiration_ttl={HEARTBEAT_TTL}")
     body = json.dumps(value).encode()
-    req = urllib.request.Request(url, data=body, method="PUT", headers={
-        "Authorization": f"Bearer {CF_TOKEN}",
-        "Content-Type": "application/json",
-    })
+    headers = {"Content-Type": "application/json"}
+    if HEARTBEAT_AUTH:
+        headers["X-Heartbeat-Token"] = HEARTBEAT_AUTH
+    req = urllib.request.Request(WORKER_URL, data=body, method="POST",
+                                 headers=headers)
     try:
         urllib.request.urlopen(req, timeout=8)
     except Exception:
@@ -99,7 +101,7 @@ def _flush_loop() -> None:
             agent = _state["agent"]
             snap = dict(_state)
         if agent:
-            _kv_put(f"agent:{agent}", snap)
+            _post_heartbeat(snap)
         # Sleep in small slices so SIGTERM exits cleanly within ~1s
         for _ in range(HEARTBEAT_SEC):
             if _stop_evt.is_set():
@@ -126,5 +128,5 @@ def stop_heartbeat() -> None:
         snap = dict(_state)
         agent = _state["agent"]
     if agent:
-        _kv_put(f"agent:{agent}", snap)
+        _post_heartbeat(snap)
     _stop_evt.set()

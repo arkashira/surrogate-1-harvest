@@ -90,3 +90,20 @@ CREATE TRIGGER audit_log_no_delete BEFORE DELETE ON audit_log
 BEGIN
   SELECT RAISE(ABORT, 'audit_log is append-only');
 END;
+
+-- agent heartbeat (replaces KV layer that hit 1000-writes/day free quota)
+-- Each daemon UPSERTs its row every HEARTBEAT_SEC; /dash/agents queries
+-- by last_seen > now-300s to render the live grid.
+CREATE TABLE IF NOT EXISTS agent_status (
+    agent       TEXT PRIMARY KEY,
+    host        TEXT,
+    pid         INTEGER,
+    state       TEXT,
+    task        TEXT,
+    cycle_n     INTEGER DEFAULT 0,
+    last_error  TEXT,
+    started_at  TEXT,
+    last_seen   INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_agent_status_last_seen
+    ON agent_status(last_seen DESC);
