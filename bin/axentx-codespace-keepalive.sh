@@ -24,10 +24,20 @@ CS_NAME="${CS_NAME:-ollama-llm-proxy-r49955gvjxqv3ww4}"
 PING_SEC="${PING_SEC:-1200}"
 WHS="${WHS:-0}"
 WHE="${WHE:-12}"
-LOG_FILE="${LOG_FILE:-/var/log/axentx/codespace-keepalive.log}"
-mkdir -p "$(dirname "$LOG_FILE")"
+# Default to journal-only (systemd captures stdout). Override LOG_FILE if you
+# also want a file copy — must be in a path the service user can write to.
+LOG_FILE="${LOG_FILE:-}"
+if [ -n "$LOG_FILE" ]; then
+    mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+fi
 
-log() { echo "[$(date -u +%FT%TZ)] $*" | tee -a "$LOG_FILE"; }
+log() {
+    if [ -n "$LOG_FILE" ]; then
+        echo "[$(date -u +%FT%TZ)] $*" | tee -a "$LOG_FILE"
+    else
+        echo "[$(date -u +%FT%TZ)] $*"
+    fi
+}
 
 # `gh` reads GH_TOKEN env automatically — no `gh auth login` needed.
 if [ -z "${GH_TOKEN:-}" ]; then
