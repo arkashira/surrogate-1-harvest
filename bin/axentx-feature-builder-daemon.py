@@ -208,12 +208,19 @@ def git_stage_and_handoff(project: str, spec_id: str,
                           written: list[Path], spec_md: Path) -> bool:
     """git add the written files + push an item to commit-queue so the
     existing commit-daemon picks it up and pushes."""
-    repo_root = PROJECTS_ROOT / project
+    repo_root = (PROJECTS_ROOT / project).resolve()  # follow /opt → /home symlink
     if not (repo_root / ".git").exists():
         log("feature-build", f"  ✗ {project} not a git repo at {repo_root}")
         return False
-    # Stage all written files
-    rels = [str(p.relative_to(repo_root)) for p in written]
+    # Stage all written files. Resolve both sides so symlinked /opt/axentx
+    # → /home/ubuntu/axentx is handled (verified by 19:12-19:13 traces).
+    rels = []
+    for p in written:
+        try:
+            rels.append(str(p.resolve().relative_to(repo_root)))
+        except ValueError:
+            log("feature-build", f"  ⚠ {p} outside repo root, skip")
+            continue
     if rels:
         try:
             subprocess.run(["git", "-C", str(repo_root), "add", *rels],
