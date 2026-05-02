@@ -281,8 +281,51 @@ def _http(method: str, url: str, body: dict | None = None, timeout: int = 20) ->
         return json.loads(raw) if raw else {}
 
 
+# Migrated 2026-05-03 from CF Worker → Supabase. Same atomic semantics
+# (UPDATE...RETURNING with WHERE owner IS NULL), implemented as Postgres
+# RPC `lease_mirror_cursor` + `advance_mirror_cursor`. CF kept as fallback.
+SB_URL = os.environ.get("SUPABASE_URL", "https://riunimyxoalicbntogbp.supabase.co")
+SB_KEY = os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get(
+    "SUPABASE_SERVICE_KEY", ""
+)
+
+
+def _sb_rpc(name: str, body: dict, timeout: int = 15) -> dict | None:
+    if not (SB_URL and SB_KEY):
+        return None
+    try:
+        req = urllib.request.Request(
+            f"{SB_URL}/rest/v1/rpc/{name}",
+            data=json.dumps(body).encode(), method="POST",
+            headers={
+                "apikey": SB_KEY,
+                "Authorization": f"Bearer {SB_KEY}",
+                "Content-Type": "application/json",
+                "User-Agent": UA,
+            },
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            raw = r.read()
+            return json.loads(raw) if raw else None
+    except Exception:
+        return None
+
+
 def cf_lease(source: str) -> dict | None:
-    """Returns {source, offset, batch} or None if busy/exhausted/unreachable."""
+    """Returns {source, offset, batch} or None if busy/exhausted/unreachable.
+    Tries Supabase RPC first; falls back to CF Worker if Supabase down."""
+    # Supabase path
+    if SB_URL and SB_KEY:
+        r = _sb_rpc("lease_mirror_cursor", {
+            "p_source": source, "p_claimer": WORKER_ID, "p_ttl": LEASE_TTL,
+        })
+        # RPC returns mirror_cursors row (dict) on success, NULL otherwise
+        if isinstance(r, dict) and r.get("source"):
+            return {"source": r["source"], "offset": r["offset"], "batch": PER_BATCH}
+        if isinstance(r, list) and r and r[0].get("source"):
+            return {"source": r[0]["source"], "offset": r[0]["offset"], "batch": PER_BATCH}
+        return None
+    # Legacy CF fallback
     try:
         r = _http("POST", f"{CF_WORKER}/mirror/lease", {
             "source": source, "claimer": WORKER_ID,
@@ -297,6 +340,12 @@ def cf_lease(source: str) -> dict | None:
 
 
 def cf_advance(source: str, rows: int, end_of_split: bool) -> bool:
+    if SB_URL and SB_KEY:
+        r = _sb_rpc("advance_mirror_cursor", {
+            "p_source": source, "p_claimer": WORKER_ID,
+            "p_rows": rows, "p_eos": end_of_split,
+        })
+        return r is not None
     try:
         r = _http("POST", f"{CF_WORKER}/mirror/advance", {
             "source": source, "claimer": WORKER_ID,

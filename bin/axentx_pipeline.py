@@ -704,15 +704,55 @@ def new_item(project: str, focus: str, prompt: str) -> dict:
 # unreachable. Disable per-stage via FS_ONLY_STAGES env var if needed.
 import socket as _xvm_socket
 _XVM_HOST = _xvm_socket.gethostname()
-_XVM_BASE = os.environ.get(
-    "XVM_QUEUE_URL", "https://surrogate-1-cursor.ashira.workers.dev"
+
+# Cross-VM coordination plane.
+# 2026-05-03 migration: CF Worker free-tier (100k req/day) was exhausted by
+# the 572-daemon Kam scale-up. Moved primary coordination to Supabase
+# (PostgREST + RPCs, ap-southeast-1 SG) — no per-request limit on the
+# free tier when hitting tables/RPCs directly. CF Worker stays online for
+# the dashboard + scheduled() cron only (those don't bill against
+# client-side request budget).
+_SB_URL = os.environ.get("SUPABASE_URL", "https://riunimyxoalicbntogbp.supabase.co")
+_SB_KEY = os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get(
+    "SUPABASE_SERVICE_KEY", ""
 )
+_SB_HEADERS = {
+    "apikey": _SB_KEY,
+    "Authorization": f"Bearer {_SB_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=representation",
+}
+# Legacy CF endpoint kept for fallback. Set XVM_QUEUE_URL='' to disable.
+_XVM_BASE = os.environ.get("XVM_QUEUE_URL", "")
 _XVM_DISABLED_STAGES = set(
     s.strip() for s in os.environ.get("FS_ONLY_STAGES", "").split(",") if s.strip()
 )
 
 
+def _sb_request(method: str, path: str, body: dict | list | None = None,
+                timeout: int = 8) -> dict | list | None:
+    """Supabase REST/RPC request. Returns parsed JSON or None on any error.
+    `path` starts with '/rest/v1/...' (e.g. '/rest/v1/rpc/claim_pipeline_item').
+    """
+    if not (_SB_URL and _SB_KEY):
+        return None
+    try:
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(
+            f"{_SB_URL}{path}", data=data, method=method,
+            headers=_SB_HEADERS,
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            raw = r.read()
+            return json.loads(raw) if raw else None
+    except Exception:
+        return None
+
+
 def _xvm_post(path: str, body: dict, timeout: int = 8) -> dict | None:
+    """Legacy CF Worker fallback. Used only if Supabase unconfigured AND
+    XVM_QUEUE_URL is set. Most callers should go through the typed helpers
+    below (_xvm_push/_xvm_claim/etc) which prefer Supabase first."""
     if not _XVM_BASE:
         return None
     try:
@@ -727,9 +767,32 @@ def _xvm_post(path: str, body: dict, timeout: int = 8) -> dict | None:
 
 
 def _xvm_push(item: dict, stage: str) -> None:
-    """Mirror item to D1 so other VMs can claim it."""
+    """Mirror item to coordination plane so other VMs can claim it.
+    Tries Supabase first (unlimited rate-limit on PostgREST direct), falls
+    back to CF Worker if Supabase unconfigured."""
     if stage in _XVM_DISABLED_STAGES:
         return
+    if _SB_URL and _SB_KEY:
+        # Supabase: upsert into pipeline_items table. Use Prefer: resolution=
+        # merge-duplicates so re-pushes (e.g. retry after crash) don't fail.
+        try:
+            req = urllib.request.Request(
+                f"{_SB_URL}/rest/v1/pipeline_items",
+                data=json.dumps({
+                    "id": item.get("id", ""),
+                    "stage": stage,
+                    "project": item.get("project", ""),
+                    "focus": item.get("focus", ""),
+                    "payload": item,
+                }).encode(),
+                method="POST",
+                headers={**_SB_HEADERS,
+                         "Prefer": "resolution=merge-duplicates,return=minimal"},
+            )
+            urllib.request.urlopen(req, timeout=8).read()
+            return
+        except Exception:
+            pass  # fall through to CF
     _xvm_post("/queue/push", {
         "id": item.get("id", ""),
         "stage": stage,
@@ -740,8 +803,21 @@ def _xvm_push(item: dict, stage: str) -> None:
 
 
 def _xvm_claim(stage: str) -> dict | None:
-    """Atomically claim oldest unclaimed D1 item for this host."""
+    """Atomically claim oldest unclaimed item across all VMs.
+    Supabase RPC `claim_pipeline_item` does the SELECT FOR UPDATE SKIP LOCKED
+    + UPDATE...RETURNING dance in a single round-trip. Falls back to CF
+    Worker /queue/claim if Supabase unconfigured."""
     if stage in _XVM_DISABLED_STAGES:
+        return None
+    if _SB_URL and _SB_KEY:
+        r = _sb_request("POST", "/rest/v1/rpc/claim_pipeline_item", {
+            "p_stage": stage, "p_claimer": _XVM_HOST, "p_ttl": 600,
+        })
+        # RPC returns a record (dict) or None when nothing claimed
+        if isinstance(r, dict) and r.get("id"):
+            return r
+        if isinstance(r, list) and r and r[0].get("id"):
+            return r[0]
         return None
     r = _xvm_post("/queue/claim", {
         "stage": stage, "claimer": _XVM_HOST, "ttl_sec": 600,
@@ -828,14 +904,21 @@ def advance(item: dict, src_path: Path, next_stage: str,
     })
     item["current"]["text"] = output[:6000]
     src_path.unlink(missing_ok=True)
-    # D1 advance — repoint the row to the new stage atomically. write_item
+    # Advance — repoint the row to the new stage atomically. write_item
     # below also re-pushes for safety, but the explicit advance avoids a
     # window where the item appears in TWO stages.
-    _xvm_post("/queue/advance", {
-        "id": item.get("id", ""),
-        "next_stage": next_stage,
-        "payload": item,
-    })
+    if _SB_URL and _SB_KEY:
+        _sb_request("POST", "/rest/v1/rpc/advance_pipeline_item", {
+            "p_id": item.get("id", ""),
+            "p_next_stage": next_stage,
+            "p_payload": item,
+        })
+    else:
+        _xvm_post("/queue/advance", {
+            "id": item.get("id", ""),
+            "next_stage": next_stage,
+            "payload": item,
+        })
     return write_item(item, next_stage)
 
 

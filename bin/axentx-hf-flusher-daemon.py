@@ -92,7 +92,48 @@ def _d1_query(sql: str, params: list | None = None) -> dict:
         return {}
 
 
+# Migrated 2026-05-03 from D1 (CF) → Supabase. CF free tier rate-limit (1027)
+# was killing all coordination traffic at scale. Supabase PostgREST is
+# unlimited for table-direct ops on the free tier.
+SB_URL = os.environ.get("SUPABASE_URL", "https://riunimyxoalicbntogbp.supabase.co")
+SB_KEY = os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get(
+    "SUPABASE_SERVICE_KEY", ""
+)
+_SB_HEADERS = {
+    "apikey": SB_KEY, "Authorization": f"Bearer {SB_KEY}",
+    "Content-Type": "application/json", "User-Agent": UA,
+}
+
+
+def _sb_get(path: str, timeout: int = 15) -> list:
+    if not (SB_URL and SB_KEY):
+        return []
+    try:
+        req = urllib.request.Request(
+            f"{SB_URL}{path}", method="GET", headers=_SB_HEADERS,
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read()) or []
+    except Exception as e:
+        log("hf-flusher", f"  sb GET fail: {type(e).__name__}: {str(e)[:120]}")
+        return []
+
+
 def fetch_pending(limit: int) -> list[dict]:
+    """Pull pending rows. Supabase first; fallback to D1 if Supabase down."""
+    if SB_URL and SB_KEY:
+        # PostgREST: GET /rest/v1/harvested_pains?pushed_to_hf=eq.0&order=harvested_at.asc&limit=N
+        rows = _sb_get(
+            f"/rest/v1/harvested_pains?pushed_to_hf=eq.0"
+            f"&order=harvested_at.asc&limit={limit}"
+            f"&select=id,source,url,title,body,score,harvested_at"
+        )
+        if rows:
+            return rows
+        # Empty result from Supabase = no pending; fall through to D1 only
+        # if Supabase explicitly errored (rows=[] both for empty + error).
+        # We can't distinguish — but this is harmless; D1 will return [] too
+        # if it's also empty.
     r = _d1_query(
         "SELECT id, source, url, title, body, score, harvested_at "
         "FROM harvested_pains WHERE pushed_to_hf = 0 "
@@ -107,6 +148,24 @@ def fetch_pending(limit: int) -> list[dict]:
 def mark_pushed(ids: list[int]) -> None:
     if not ids:
         return
+    # Supabase: DELETE /rest/v1/harvested_pains?id=in.(1,2,3,...)
+    if SB_URL and SB_KEY:
+        for i in range(0, len(ids), 50):
+            chunk = ids[i:i + 50]
+            id_list = ",".join(str(int(x)) for x in chunk)
+            try:
+                req = urllib.request.Request(
+                    f"{SB_URL}/rest/v1/harvested_pains?id=in.({id_list})",
+                    method="DELETE",
+                    headers={**_SB_HEADERS, "Prefer": "return=minimal"},
+                )
+                urllib.request.urlopen(req, timeout=15).read()
+            except Exception as e:
+                log("hf-flusher",
+                    f"  ⚠ sb delete chunk {i//50} failed ({type(e).__name__}); "
+                    "row stays for retry next cycle (idempotent)")
+        return
+    # Legacy D1 fallback
     for i in range(0, len(ids), 50):
         chunk = ids[i:i + 50]
         placeholders = ",".join("?" for _ in chunk)
@@ -115,7 +174,7 @@ def mark_pushed(ids: list[int]) -> None:
             [int(x) for x in chunk],
         )
         if not r:
-            log("hf-flusher", f"  ⚠ delete chunk {i//50} failed — will reflush")
+            log("hf-flusher", f"  ⚠ d1 delete chunk {i//50} failed — will reflush")
 
 
 def push_to_hf(rows: list[dict]) -> str:

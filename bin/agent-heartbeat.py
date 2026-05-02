@@ -40,12 +40,22 @@ import time
 import urllib.error
 import urllib.request
 
+# Migrated 2026-05-03 from CF Worker → Supabase. CF free tier (100k req/day)
+# was exhausted by 572-daemon scale-up; Supabase PostgREST is unlimited on
+# free tier when hitting tables direct. Old CF route stays in env for
+# fallback if Supabase unconfigured.
+SB_URL = os.environ.get("SUPABASE_URL", "https://riunimyxoalicbntogbp.supabase.co")
+SB_KEY = os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get(
+    "SUPABASE_SERVICE_KEY", ""
+)
 WORKER_URL = os.environ.get(
-    "HEARTBEAT_WORKER_URL",
-    "https://surrogate-1-cursor.ashira.workers.dev/agent/heartbeat",
+    "HEARTBEAT_WORKER_URL", ""  # default empty — Supabase first
 )
 HEARTBEAT_AUTH = os.environ.get("HEARTBEAT_AUTH", "")
-HEARTBEAT_SEC = int(os.environ.get("HEARTBEAT_SEC", "60"))
+# Bumped 60s → 300s as part of the scale-up to keep total req-rate low even
+# without per-tier quota. 572 daemons × 300s = 165k/day, comfortable on
+# Supabase free tier.
+HEARTBEAT_SEC = int(os.environ.get("HEARTBEAT_SEC", "300"))
 HOSTNAME = socket.gethostname()
 
 _state: dict = {
@@ -65,12 +75,39 @@ _stop_evt = threading.Event()
 
 
 def _post_heartbeat(value: dict) -> None:
-    """POST to worker /agent/heartbeat. Best-effort, swallow all errors.
-
-    CF treats Python's default urllib UA ('Python-urllib/3.x') as a bot
-    and returns 403. Setting an explicit User-Agent — anything non-default
-    — is enough. Use a daemon-identifying UA so the worker can log it.
-    """
+    """UPSERT into Supabase agent_status table (preferred) or fall back to
+    CF Worker /agent/heartbeat (legacy). Best-effort, swallow all errors."""
+    # Supabase first (unlimited rate)
+    if SB_URL and SB_KEY:
+        body = json.dumps({
+            "agent": value.get("agent", ""),
+            "host": value.get("host", ""),
+            "pid": value.get("pid", 0),
+            "state": value.get("state", ""),
+            "task": value.get("task", ""),
+            "cycle_n": value.get("cycle_n", 0),
+            "last_error": value.get("last_error", ""),
+            "started_at": value.get("started_at", ""),
+            "last_seen": int(datetime.datetime.utcnow().timestamp()),
+        }).encode()
+        headers = {
+            "apikey": SB_KEY,
+            "Authorization": f"Bearer {SB_KEY}",
+            "Content-Type": "application/json",
+            # ON CONFLICT (agent) DO UPDATE — Supabase upsert syntax
+            "Prefer": "resolution=merge-duplicates,return=minimal",
+            "User-Agent": f"surrogate-heartbeat/1.0 ({HOSTNAME})",
+        }
+        try:
+            req = urllib.request.Request(
+                f"{SB_URL}/rest/v1/agent_status?on_conflict=agent",
+                data=body, method="POST", headers=headers,
+            )
+            urllib.request.urlopen(req, timeout=8)
+            return
+        except Exception:
+            pass  # fall through to CF if Supabase down
+    # Legacy CF Worker fallback
     if not WORKER_URL:
         return
     body = json.dumps(value).encode()

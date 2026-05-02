@@ -500,17 +500,15 @@ SOURCES = (
 SEEN_TTL_SEC = int(os.environ.get("RESEARCH_SEEN_TTL_SEC", "604800"))   # 7 days
 SEEN_CAP = int(os.environ.get("RESEARCH_SEEN_CAP", "1500"))             # was 5000
 
-# Cross-VM shared dedup via CF Worker /seen/check + /seen/mark.
-# Without this, GCP and Kamatera daemons fetch the same posts independently
-# (waste of LLM tokens). With this, both VMs share a single seen-set.
-SHARED_DEDUP_URL = os.environ.get(
-    "SHARED_DEDUP_URL",
-    "https://surrogate-1-cursor.ashira.workers.dev",
+# Cross-VM shared dedup. Migrated 2026-05-03 from CF Worker /seen/* to
+# Supabase RPC seen_check_bulk + seen_mark_bulk. CF was rate-limited at
+# 100k req/day with 572 daemons; Supabase free tier has no per-request cap.
+SB_URL = os.environ.get("SUPABASE_URL", "https://riunimyxoalicbntogbp.supabase.co")
+SB_KEY = os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get(
+    "SUPABASE_SERVICE_KEY", ""
 )
-HF_STAGING_URL = os.environ.get(
-    "HF_STAGING_URL",
-    "https://surrogate-1-cursor.ashira.workers.dev/harvest/post",
-)
+SHARED_DEDUP_URL = os.environ.get("SHARED_DEDUP_URL", "")  # legacy CF fallback
+HF_STAGING_URL = os.environ.get("HF_STAGING_URL", "")
 import socket as _socket
 _HOST = _socket.gethostname()
 
@@ -519,52 +517,111 @@ def shared_dedup_check(fps: list[str]) -> set[str]:
     """Return the SUBSET of fps that the shared store has NOT seen yet."""
     if not fps:
         return set()
-    body = json.dumps({"kind": "pain-url", "fps": fps[:200]}).encode()
-    req = urllib.request.Request(
-        f"{SHARED_DEDUP_URL}/seen/check", data=body, method="POST",
-        headers={"Content-Type": "application/json", "User-Agent": UA},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=10) as r:
-            d = json.loads(r.read())
-        return set(d.get("unseen") or [])
-    except Exception:
-        # Fail-open: if the shared store is unreachable, treat all as unseen
-        # so we don't block research entirely. Local cursor still dedups.
-        return set(fps)
+    fps_chunk = fps[:200]
+    # Supabase first
+    if SB_URL and SB_KEY:
+        try:
+            req = urllib.request.Request(
+                f"{SB_URL}/rest/v1/rpc/seen_check_bulk",
+                data=json.dumps({"p_kind": "pain-url", "p_fps": fps_chunk}).encode(),
+                method="POST",
+                headers={
+                    "apikey": SB_KEY, "Authorization": f"Bearer {SB_KEY}",
+                    "Content-Type": "application/json", "User-Agent": UA,
+                },
+            )
+            with urllib.request.urlopen(req, timeout=10) as r:
+                d = json.loads(r.read())
+            seen = {row.get("fp") for row in d if isinstance(row, dict)}
+            return set(fps_chunk) - seen
+        except Exception:
+            pass
+    # CF fallback
+    if SHARED_DEDUP_URL:
+        body = json.dumps({"kind": "pain-url", "fps": fps_chunk}).encode()
+        req = urllib.request.Request(
+            f"{SHARED_DEDUP_URL}/seen/check", data=body, method="POST",
+            headers={"Content-Type": "application/json", "User-Agent": UA},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                d = json.loads(r.read())
+            return set(d.get("unseen") or [])
+        except Exception:
+            pass
+    # Fail-open: if everything is unreachable, treat all as unseen so research
+    # doesn't block. Local cursor still dedups within this worker's session.
+    return set(fps_chunk)
 
 
 def shared_dedup_mark(fps: list[str]) -> None:
     if not fps:
         return
-    body = json.dumps({"kind": "pain-url", "fps": fps[:200], "host": _HOST}).encode()
-    req = urllib.request.Request(
-        f"{SHARED_DEDUP_URL}/seen/mark", data=body, method="POST",
-        headers={"Content-Type": "application/json", "User-Agent": UA},
-    )
-    try:
-        urllib.request.urlopen(req, timeout=10)
-    except Exception:
-        pass  # best-effort
+    fps_chunk = fps[:200]
+    if SB_URL and SB_KEY:
+        try:
+            req = urllib.request.Request(
+                f"{SB_URL}/rest/v1/rpc/seen_mark_bulk",
+                data=json.dumps({"p_kind": "pain-url", "p_fps": fps_chunk,
+                                 "p_host": _HOST}).encode(),
+                method="POST",
+                headers={
+                    "apikey": SB_KEY, "Authorization": f"Bearer {SB_KEY}",
+                    "Content-Type": "application/json", "User-Agent": UA,
+                },
+            )
+            urllib.request.urlopen(req, timeout=10)
+            return
+        except Exception:
+            pass
+    if SHARED_DEDUP_URL:
+        body = json.dumps({"kind": "pain-url", "fps": fps_chunk, "host": _HOST}).encode()
+        req = urllib.request.Request(
+            f"{SHARED_DEDUP_URL}/seen/mark", data=body, method="POST",
+            headers={"Content-Type": "application/json", "User-Agent": UA},
+        )
+        try:
+            urllib.request.urlopen(req, timeout=10)
+        except Exception:
+            pass  # best-effort
 
 
 def stage_post_to_hf_buffer(post: dict) -> None:
-    """Stage raw post to D1 buffer; a separate flusher batches into HF."""
-    body = json.dumps({
+    """Stage raw post to harvested_pains table (Supabase). hf-flusher-daemon
+    drains pushed_to_hf=0 rows to axentx/surrogate-1-harvested-pains every
+    cycle. Migrated from D1 (CF) → Supabase 2026-05-03."""
+    payload = {
         "source": post.get("source", ""),
         "url": post.get("url", ""),
         "title": post.get("title", "")[:500],
         "body": post.get("body", "")[:6000],
         "score": int(post.get("score", 0) or 0),
-    }).encode()
-    req = urllib.request.Request(
-        HF_STAGING_URL, data=body, method="POST",
-        headers={"Content-Type": "application/json", "User-Agent": UA},
-    )
-    try:
-        urllib.request.urlopen(req, timeout=8)
-    except Exception:
-        pass
+    }
+    if SB_URL and SB_KEY:
+        try:
+            req = urllib.request.Request(
+                f"{SB_URL}/rest/v1/harvested_pains",
+                data=json.dumps(payload).encode(), method="POST",
+                headers={
+                    "apikey": SB_KEY, "Authorization": f"Bearer {SB_KEY}",
+                    "Content-Type": "application/json", "User-Agent": UA,
+                    "Prefer": "return=minimal",
+                },
+            )
+            urllib.request.urlopen(req, timeout=8)
+            return
+        except Exception:
+            pass
+    # CF fallback
+    if HF_STAGING_URL:
+        try:
+            req = urllib.request.Request(
+                HF_STAGING_URL, data=json.dumps(payload).encode(), method="POST",
+                headers={"Content-Type": "application/json", "User-Agent": UA},
+            )
+            urllib.request.urlopen(req, timeout=8)
+        except Exception:
+            pass
 
 
 def load_cursor() -> dict:
