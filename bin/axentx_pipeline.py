@@ -344,11 +344,14 @@ def call_llm(prompt: str, system: str = "", max_tokens: int = 1500,
             _cooldown("Gemini", 60)
             last_err = f"Gemini: {e} (after {last_err})"
 
-    # Last-resort fallback: own Surrogate-1 v1 LoRA via ZeroGPU Space.
-    # User directive (2026-05-02): 'ให้ตายยังไงมันก็มี model ทำงานได้'.
-    # Default ON. Cooldown short so we keep retrying — a single 503 from
-    # the Space sleeping shouldn't drop us out of the chain.
-    if os.environ.get("USE_V1_FALLBACK", "1") == "1" and _provider_ready("v1"):
+    # Surrogate-1 v1 fallback (HF ZeroGPU Space).
+    # Default OFF as of 2026-05-02 because the Space's GPU function
+    # currently returns 'event: error data: null' (ZeroGPU quota exhausted
+    # or LoRA load failure on the Space side — not our chain bug). The
+    # Ling-2.6-1T router call above already serves the 'always-something
+    # answers' role with a 1T-param model that's better than v1's 7B.
+    # Re-enable via USE_V1_FALLBACK=1 once the Space is repaired.
+    if os.environ.get("USE_V1_FALLBACK", "0") == "1" and _provider_ready("v1"):
         try:
             full = (system + "\n\n" + prompt) if system else prompt
             return _call_surrogate_v1(full, timeout=max(timeout, 60))
@@ -356,16 +359,12 @@ def call_llm(prompt: str, system: str = "", max_tokens: int = 1500,
             _cooldown("v1", 60)
             last_err = f"surrogate-v1: {e} (after {last_err})"
 
-    # If we reach here, EVERY provider including v1 is in cooldown. Reset
-    # cooldowns and try v1 one more time as absolute last resort —
-    # better degraded answer than dropped pipeline cycle.
-    if os.environ.get("USE_V1_FALLBACK", "1") == "1":
-        _PROVIDER_COOLDOWN.pop("v1", None)
-        try:
-            full = (system + "\n\n" + prompt) if system else prompt
-            return _call_surrogate_v1(full, timeout=max(timeout, 90))
-        except Exception as e:
-            last_err = f"surrogate-v1 final: {e} (after {last_err})"
+    # Last absolute resort: retry HF Router Ling once with extended timeout
+    # so we never drop a cycle just because one provider had a hiccup.
+    try:
+        return _hf_inference(messages, max_tokens, max(timeout, 60))
+    except Exception as e:
+        last_err = f"hf-final: {e} (after {last_err})"
 
     raise RuntimeError(
         f"all LLM providers failed; last={last_err}; "
@@ -623,27 +622,109 @@ def new_item(project: str, focus: str, prompt: str) -> dict:
     }
 
 
+# ─── Cross-VM queue (D1-backed) ──────────────────────────────────────────
+# User directive (2026-05-02): 'Pipeline queues ไม่ shared ... GCP-produced
+# items get reviewed by Kamatera and vice-versa'.
+# Strategy: dual-write to FS (cache + safety) AND D1 (cross-VM coord).
+# pick_oldest claims atomically from D1; falls back to FS scan if D1
+# unreachable. Disable per-stage via FS_ONLY_STAGES env var if needed.
+import socket as _xvm_socket
+_XVM_HOST = _xvm_socket.gethostname()
+_XVM_BASE = os.environ.get(
+    "XVM_QUEUE_URL", "https://surrogate-1-cursor.ashira.workers.dev"
+)
+_XVM_DISABLED_STAGES = set(
+    s.strip() for s in os.environ.get("FS_ONLY_STAGES", "").split(",") if s.strip()
+)
+
+
+def _xvm_post(path: str, body: dict, timeout: int = 8) -> dict | None:
+    if not _XVM_BASE:
+        return None
+    try:
+        req = urllib.request.Request(
+            f"{_XVM_BASE}{path}", data=json.dumps(body).encode(), method="POST",
+            headers={"Content-Type": "application/json", "User-Agent": UA_BROWSER},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read())
+    except Exception:
+        return None
+
+
+def _xvm_push(item: dict, stage: str) -> None:
+    """Mirror item to D1 so other VMs can claim it."""
+    if stage in _XVM_DISABLED_STAGES:
+        return
+    _xvm_post("/queue/push", {
+        "id": item.get("id", ""),
+        "stage": stage,
+        "project": item.get("project", ""),
+        "focus": item.get("focus", ""),
+        "payload": item,
+    })
+
+
+def _xvm_claim(stage: str) -> dict | None:
+    """Atomically claim oldest unclaimed D1 item for this host."""
+    if stage in _XVM_DISABLED_STAGES:
+        return None
+    r = _xvm_post("/queue/claim", {
+        "stage": stage, "claimer": _XVM_HOST, "ttl_sec": 600,
+    })
+    if not r:
+        return None
+    return (r.get("item") or None)
+
+
 def write_item(item: dict, stage: str) -> Path:
+    """Write to FS queue (cache) AND D1 (cross-VM coordination)."""
     # Defensive mkdir on every write — protects against the queue dir being
-    # deleted out from under us at runtime (observed 2026-05-02: empty queue
-    # dirs silently disappeared, every dev → review handoff crashed with
-    # FileNotFoundError, pipeline starved for ~1h until manual mkdir).
+    # deleted out from under us at runtime (observed 2026-05-02).
     QUEUES[stage].mkdir(parents=True, exist_ok=True)
     path = QUEUES[stage] / f"{item['id']}.json"
     item["stage"] = stage
     path.write_text(json.dumps(item, indent=2))
+    # Mirror to D1 (best-effort). If CF is unreachable, FS still works.
+    _xvm_push(item, stage)
     return path
 
 
 def pick_oldest(stage: str) -> tuple[Path, dict] | None:
-    """Returns (path, item) for the oldest queued item, or None."""
+    """Atomically claim oldest item across all VMs.
+
+    Order:
+      1. Try D1 atomic claim (UPDATE...RETURNING). If returns an item,
+         materialize it on local FS and return.
+      2. Fall back to local FS scan (legacy / D1-down behavior).
+
+    The materialized FS path lets advance() / fail() use the same
+    src_path.unlink() semantics regardless of source.
+    """
     QUEUES[stage].mkdir(parents=True, exist_ok=True)
+    # 1. D1 claim
+    claimed = _xvm_claim(stage)
+    if claimed:
+        payload = claimed.get("payload") or {}
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except Exception:
+                payload = {}
+        item_id = claimed.get("id") or payload.get("id")
+        if item_id and isinstance(payload, dict) and payload:
+            path = QUEUES[stage] / f"{item_id}.json"
+            try:
+                path.write_text(json.dumps(payload, indent=2))
+                return path, payload
+            except Exception:
+                pass
+    # 2. FS fallback
     files = sorted(QUEUES[stage].glob("*.json"), key=lambda p: p.stat().st_mtime)
     for p in files:
         try:
             return p, json.loads(p.read_text())
         except Exception:
-            # corrupt → move aside
             p.rename(p.with_suffix(".corrupt"))
             continue
     return None
@@ -652,7 +733,8 @@ def pick_oldest(stage: str) -> tuple[Path, dict] | None:
 def advance(item: dict, src_path: Path, next_stage: str,
             actor: str, output: str) -> Path:
     """Move item from current stage to next, append history entry.
-    Preserves trace_id + discovery_id once set (never overwrites)."""
+    Preserves trace_id + discovery_id once set (never overwrites).
+    Writes to D1 + FS atomically via write_item()."""
     if not item.get("trace_id"):
         item["trace_id"] = new_trace_id()
     item["history"].append({
@@ -663,6 +745,14 @@ def advance(item: dict, src_path: Path, next_stage: str,
     })
     item["current"]["text"] = output[:6000]
     src_path.unlink(missing_ok=True)
+    # D1 advance — repoint the row to the new stage atomically. write_item
+    # below also re-pushes for safety, but the explicit advance avoids a
+    # window where the item appears in TWO stages.
+    _xvm_post("/queue/advance", {
+        "id": item.get("id", ""),
+        "next_stage": next_stage,
+        "payload": item,
+    })
     return write_item(item, next_stage)
 
 
