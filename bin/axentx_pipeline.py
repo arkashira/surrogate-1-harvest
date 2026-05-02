@@ -201,8 +201,7 @@ def call_llm(prompt: str, system: str = "", max_tokens: int = 1500,
         ("xAI", "https://api.x.ai/v1/chat/completions",
          os.environ.get("GROK_API_KEY") or os.environ.get("XAI_API_KEY"),
          "grok-2-1212"),
-        ("Chutes", "https://llm.chutes.ai/v1/chat/completions",
-         os.environ.get("CHUTES_API_KEY"), "deepseek-ai/DeepSeek-V3"),
+        # Chutes removed 2026-05-02 (account balance $0 — every call 402).
         ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions",
          os.environ.get("OPENROUTER_API_KEY"),
          "meta-llama/llama-3.3-70b-instruct:free"),
@@ -293,13 +292,11 @@ def call_llm(prompt: str, system: str = "", max_tokens: int = 1500,
 #   - xAI: removed — 'grok-2-1212' deprecated and tenant has no credits
 #     ('newly created team doesn't have any credits or licenses').
 _STRONG_CHAIN = [
-    # Provider, URL, env-key, model — ordered by reasoning quality / TPD
-    ("Chutes-DeepSeek-V3.2",      "https://llm.chutes.ai/v1/chat/completions",
-     "CHUTES_API_KEY",            "deepseek-ai/DeepSeek-V3.2-TEE"),
-    ("Chutes-Qwen3.5-397B",       "https://llm.chutes.ai/v1/chat/completions",
-     "CHUTES_API_KEY",            "Qwen/Qwen3.5-397B-A17B-TEE"),
-    ("Chutes-DeepSeek-R1-0528",   "https://llm.chutes.ai/v1/chat/completions",
-     "CHUTES_API_KEY",            "deepseek-ai/DeepSeek-R1-0528-TEE"),
+    # Provider, URL, env-key, model — ordered by reasoning quality / TPD.
+    #
+    # Chutes REMOVED 2026-05-02 — account balance $0.0, every call returns
+    # 'Quota exceeded'. Re-add only if user funds the account (which would
+    # break the free-tier-only policy — see docs/free-tier-only-policy.md).
     ("SambaNova-Llama3.3-70B",    "https://api.sambanova.ai/v1/chat/completions",
      "SAMBANOVA_API_KEY",         "Meta-Llama-3.3-70B-Instruct"),
     ("Groq-Llama3.3-70B",         "https://api.groq.com/openai/v1/chat/completions",
@@ -308,6 +305,12 @@ _STRONG_CHAIN = [
      "NVIDIA_NIM_API_KEY",        "meta/llama-3.3-70b-instruct"),
     ("OpenRouter-Llama3.3-70B",   "https://openrouter.ai/api/v1/chat/completions",
      "OPENROUTER_API_KEY",        "meta-llama/llama-3.3-70b-instruct:free"),
+    # Mid-tier additions: when the 70B class is rate-limited, these still
+    # provide reasonable decision quality. Cerebras + Kimi.
+    ("Cerebras-Llama3.3-70B",     "https://api.cerebras.ai/v1/chat/completions",
+     "CEREBRAS_API_KEY",          "llama-3.3-70b"),
+    ("Kimi-K2-Instruct",          "https://api.moonshot.ai/v1/chat/completions",
+     "KIMI_API_KEY",              "kimi-k2-instruct"),
 ]
 
 
