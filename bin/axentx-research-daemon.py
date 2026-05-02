@@ -414,6 +414,58 @@ def fetch_github_issues(query: str) -> list[dict]:
     return posts
 
 
+# ─── archive.org Wayback fallback for any URL ─────────────────────────────
+# When a primary fetch returns 404/410/403/blocked, we fall through to the
+# Wayback closest-snapshot API. Useful when the original page is taken down
+# or geo-blocked but still indexed. Free, no auth.
+def archive_snapshot(target_url: str) -> str | None:
+    """Return raw text of the latest archived snapshot, or None."""
+    api = f"http://archive.org/wayback/available?url={urllib.parse.quote(target_url)}"
+    try:
+        req = urllib.request.Request(api, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=12) as r:
+            d = json.loads(r.read())
+        snap = (d.get("archived_snapshots") or {}).get("closest") or {}
+        if not snap.get("available") or not snap.get("url"):
+            return None
+        snap_url = snap["url"]
+        if snap_url.startswith("http://"):
+            snap_url = "https://" + snap_url[len("http://"):]
+        req2 = urllib.request.Request(snap_url, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req2, timeout=20) as r:
+            return r.read().decode("utf-8", errors="replace")[:8000]
+    except Exception:
+        return None
+
+
+# ─── CF Worker /probe fan-out — IP rotation for blocked targets ──────────
+# Hits surrogate-1-cursor.ashira.workers.dev/probe?url=... which fetches
+# from CF egress (different IP pool than GCP NAT). Useful when GCP gets
+# 429/403 but CF doesn't.
+PROBE_URL = os.environ.get(
+    "PROBE_URL",
+    "https://surrogate-1-cursor.ashira.workers.dev/probe",
+)
+PROBE_AUTH = os.environ.get("PROBE_AUTH", "")
+
+
+def probe_via_cf(target_url: str) -> str | None:
+    """Fetch via CF Worker. Returns body text or None on failure."""
+    qs = urllib.parse.urlencode({"url": target_url})
+    headers = {"User-Agent": UA}
+    if PROBE_AUTH:
+        headers["X-Probe-Token"] = PROBE_AUTH
+    try:
+        req = urllib.request.Request(f"{PROBE_URL}?{qs}", headers=headers)
+        with urllib.request.urlopen(req, timeout=30) as r:
+            status = r.headers.get("X-Probe-Status", "0")
+            if not (status.startswith("2") or status.startswith("3")):
+                return None
+            return r.read().decode("utf-8", errors="replace")[:8000]
+    except Exception:
+        return None
+
+
 # StackExchange topical bands — each gives ~15 questions per cycle.
 SE_TARGETS = [
     "stackoverflow:devops", "stackoverflow:aws", "stackoverflow:terraform",

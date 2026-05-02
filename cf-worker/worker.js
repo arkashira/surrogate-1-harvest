@@ -344,6 +344,54 @@ export default {
         });
       }
 
+      // /probe?url=<encoded> — IP-rotation fan-out for scrapers blocked on
+      // the GCP NAT. Worker fetches over CF egress (different IP pool),
+      // returns {status, headers, body}. Auth via X-Probe-Token to stop
+      // public abuse. Time-budget 25s.
+      // (Milestone 2 from docs/scraper-bypass-techniques.md)
+      if (path === "/probe" && request.method === "GET") {
+        const tok = request.headers.get("X-Probe-Token") || "";
+        if (env.PROBE_AUTH && tok !== env.PROBE_AUTH) {
+          return new Response("unauthorized", { status: 401 });
+        }
+        const target = url.searchParams.get("url") || "";
+        if (!target || !target.startsWith("http")) {
+          return new Response("missing or invalid ?url=", { status: 400 });
+        }
+        const probeUA = url.searchParams.get("ua")
+          || "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+             + "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+        const max = Math.min(parseInt(url.searchParams.get("max") || "200000"), 1000000);
+        try {
+          const upstream = await fetch(target, {
+            method: "GET",
+            headers: {
+              "User-Agent": probeUA,
+              "Accept": "*/*",
+              "Accept-Language": "en-US,en;q=0.9",
+            },
+            cf: { cacheTtl: 0, cacheEverything: false },
+            signal: AbortSignal.timeout(25000),
+          });
+          const buf = await upstream.arrayBuffer();
+          const sliced = buf.byteLength > max ? buf.slice(0, max) : buf;
+          ctx.waitUntil(bumpMetric(env, ctx, `probe:${upstream.status}`));
+          return new Response(sliced, {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "X-Probe-Status": String(upstream.status),
+              "X-Probe-Bytes": String(buf.byteLength),
+              "X-Probe-Truncated": buf.byteLength > max ? "1" : "0",
+              ...CORS,
+            },
+          });
+        } catch (e) {
+          ctx.waitUntil(bumpMetric(env, ctx, "probe:err"));
+          return json({ error: String(e).slice(0, 200) }, 502, { ...CORS });
+        }
+      }
+
       if (path === "/dynamic-datasets" && request.method === "GET") {
         await bumpMetric(env, ctx, "req:datasets");
         const cached = await kvGetTracked(env, ctx, "datasets:all", "datasets");

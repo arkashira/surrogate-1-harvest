@@ -1,7 +1,8 @@
 [Unit]
-Description=axentx release daemon
+Description=axentx release daemon — autonomous semver tagging + GH releases
 After=network-online.target hermes-scheduler-daemon.service
 Wants=network-online.target
+
 [Service]
 Type=simple
 User=ubuntu
@@ -13,9 +14,13 @@ Environment=AXENTX_ROOT=/opt/axentx
 ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-release-daemon.py
 Restart=always
 RestartSec=15
-MemoryMax=128M
-TasksMax=8
+# Release fires every 4h; needs headroom for git push + gh release create
+# (each spawns helper processes). 128M/8 was too tight — observed
+# 'unable to create thread: Resource temporarily unavailable' on bootstrap.
+MemoryMax=384M
+TasksMax=64
 StandardOutput=journal
 StandardError=journal
+
 [Install]
 WantedBy=multi-user.target
