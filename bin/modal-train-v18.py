@@ -63,10 +63,13 @@ image = (
         "triton>=3.0.0",  # Triton ≥3 for Liger Kernel (installed at runtime by v18)
         extra_options="--extra-index-url https://download.pytorch.org/whl/cu121",
     )
-    # Liger Kernel + APOLLO + flash-attn → v18 self-installs these at runtime
-    # (it has try/except per-package, so a build failure on one doesn't kill
-    # the run). Keeping them OUT of the image build avoids long cold-starts
-    # on flash-attn compilation (15-30 min) when the run might not need it.
+    # flash-attn — install with prebuilt wheel (torch 2.5 + cu121 has one on
+    # PyPI). Skip --no-build-isolation since the wheel doesn't need to compile.
+    # First Modal run crashed because USE_FLASH_ATTN=2 toggled FA2 on but the
+    # package was absent → ImportError at model load. Install upfront here.
+    .pip_install("flash-attn==2.7.4.post1",
+                 extra_options="--no-build-isolation")
+    # Liger Kernel + APOLLO → v18 self-installs at runtime (try/except wraps).
 )
 
 # ── Persistent volumes ─────────────────────────────────────────────────────
@@ -154,7 +157,12 @@ def train(
         # Big GPU = enable everything that was off on T4
         "INSTALL_LIGER_KERNEL": "1",
         "INSTALL_APOLLO_TORCH": "1",
-        "USE_FLASH_ATTN": "2",
+        # FA2 in modal image; "auto" lets transformers pick best available
+        # (FA2 if installed + supported, else SDPA fallback). "2" forces FA2
+        # which crashes if package absent — safer to let library decide.
+        "USE_FLASH_ATTN": "auto",
+        # Tell HF transformers explicitly which attn impl to use
+        "ATTN_IMPLEMENTATION": "flash_attention_2",
         # Output dir → mounted volume so checkpoints survive container exit
         "OUTPUT_DIR": "/v2-out",
         "HF_HOME": "/root/.cache/huggingface",
