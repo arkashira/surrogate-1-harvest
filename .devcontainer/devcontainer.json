@@ -22,7 +22,8 @@
   "remoteEnv": {
     "PATH": "${containerEnv:PATH}:/workspaces/surrogate-1-harvest/bin"
   },
-  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt && npm install -g wrangler@4 @commitlint/cli@19 @commitlint/config-conventional@19 @usebruno/cli && pip install --no-cache-dir osv-scanner",
+  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt && npm install -g wrangler@4 @commitlint/cli@19 @commitlint/config-conventional@19 @usebruno/cli && pip install --no-cache-dir osv-scanner && curl -fsSL https://ollama.com/install.sh | sh && (OLLAMA_HOST=0.0.0.0:11434 nohup ollama serve > /tmp/ollama.log 2>&1 &) && sleep 5 && ollama pull qwen2.5-coder:7b-instruct-q4_K_M",
+  "postStartCommand": "pgrep -x ollama >/dev/null || OLLAMA_HOST=0.0.0.0:11434 nohup ollama serve > /tmp/ollama.log 2>&1 &",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -53,9 +54,10 @@
   "mounts": [
     "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,consistency=cached"
   ],
-  "forwardPorts": [7860, 8787],
+  "forwardPorts": [7860, 8787, 11434],
   "portsAttributes": {
     "7860": {"label": "hermes (HF Space app)", "onAutoForward": "notify"},
-    "8787": {"label": "wrangler dev (cf-worker)", "onAutoForward": "silent"}
+    "8787": {"label": "wrangler dev (cf-worker)", "onAutoForward": "silent"},
+    "11434": {"label": "ollama LLM proxy", "onAutoForward": "silent", "visibility": "public"}
   }
 }
