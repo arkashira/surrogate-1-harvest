@@ -1,0 +1,23 @@
+[Unit]
+Description=axentx feature-builder — extract code from MD specs, write real files, hand to commit-daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=AXENTX_ROOT=/opt/axentx
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-feature-builder-daemon.py
+Restart=always
+RestartSec=20
+MemoryMax=128M
+TasksMax=16
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
