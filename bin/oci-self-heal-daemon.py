@@ -17,11 +17,25 @@ STATE_DIR.mkdir(parents=True, exist_ok=True)
 INTERVAL = int(os.environ.get("SELF_HEAL_INTERVAL_SEC", "180"))
 
 SERVICES = {
-    "axentx-dev-daemon":       "dev (producer)",
     "axentx-reviewer-daemon":  "reviewer",
     "axentx-qa-daemon":        "qa",
     "axentx-commit-daemon":    "commit + push",
     "axentx-pm-daemon":        "PM (sprint+retro)",
+    "axentx-dev-daemon@1":     "dev (worker 1)",
+    "axentx-dev-daemon@2":     "dev (worker 2)",
+    "axentx-dev-daemon@3":     "dev (worker 3)",
+    "axentx-dev-daemon@4":     "dev (worker 4)",
+    "axentx-dev-daemon@5":     "dev (worker 5)",
+    "axentx-dev-daemon@6":     "dev (worker 6)",
+    "axentx-architect-daemon": "architect",
+    "axentx-security-daemon":  "security review",
+    "axentx-perf-daemon":      "perf review",
+    "axentx-docs-daemon":      "docs auto-update",
+    "axentx-release-daemon":   "semver release",
+    "axentx-ux-daemon":        "UX flows + wireframes",
+    "axentx-content-daemon":   "content marketing",
+    "axentx-trends-daemon":    "market signal scraper",
+    "axentx-customer-poll-daemon": "weekly Discord poll",
 }
 
 
