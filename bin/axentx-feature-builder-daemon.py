@@ -104,15 +104,25 @@ ALLOWED_EXTS = {
 # escape via ../ or absolute paths to system locations.
 def _safe_path(repo_root: Path, candidate: str) -> Path | None:
     """Return resolved Path if safe to write, None if rejected."""
-    s = candidate.strip().strip("/").strip()
+    s = candidate.strip()
     if not s:
         return None
-    # Strip leading "/opt/axentx/<project>/" if LLM pasted absolute path
-    s = re.sub(r"^/?opt/axentx/[^/]+/", "", s)
-    # Reject absolute system paths
-    if s.startswith(("/", "~", "$HOME")):
+    # Strip common prefixes the LLM may emit (in priority order):
+    #   /opt/axentx/<project>/   /home/<user>/axentx/<project>/
+    #   ~/axentx/<project>/      $HOME/axentx/<project>/
+    #   <project>/               (e.g. "Costinel/foo.py" — relative-to-axentx)
+    # After these, what's left should be a pure relative path inside repo.
+    project_name = repo_root.name
+    s = re.sub(rf"^/opt/axentx/{re.escape(project_name)}/", "", s)
+    s = re.sub(rf"^/home/[^/]+/axentx/{re.escape(project_name)}/", "", s)
+    s = re.sub(rf"^~/axentx/{re.escape(project_name)}/", "", s)
+    s = re.sub(rf"^\$HOME/axentx/{re.escape(project_name)}/", "", s)
+    s = re.sub(rf"^{re.escape(project_name)}/", "", s)
+    # Now reject anything that's still absolute or escapes
+    if s.startswith(("/", "~", "$HOME")) or ".." in Path(s).parts:
         return None
-    if ".." in Path(s).parts:
+    s = s.strip("/")
+    if not s:
         return None
     p = (repo_root / s).resolve()
     try:
@@ -174,21 +184,35 @@ def parse_spec(md_path: Path) -> list[tuple[Path, str, str]]:
 
 def write_files(extracts: list[tuple[Path, str, str]], project: str,
                 spec_id: str) -> list[Path]:
-    """Write extracted code files. Returns list of paths actually written."""
+    """Write extracted code files. Returns list of paths actually written.
+
+    Conflict policy: file recently edited (last 24h) AND distinguishable
+    from prior dev-bot output → drop a `<filename>.<spec-id>.suggestion`
+    sibling instead of overwriting. Otherwise overwrite freely.
+
+    The `.suggestion` sibling is built by appending to the FILE NAME, not
+    via `Path.with_suffix` (which on multi-part suffixes can resolve to
+    sibling-with-replaced-suffix and trip the relative_to check).
+    """
+    repo_root = (PROJECTS_ROOT / project).resolve()
     written: list[Path] = []
     for path, lang, code in extracts:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        # Don't blindly overwrite hand-written code. If file exists and is
-        # older than 1 day, write directly. Otherwise write `.suggestion`
-        # sibling so a human can diff.
-        if path.exists() and (time.time() - path.stat().st_mtime) < 86400:
-            # Recent human edit — preserve, drop suggestion alongside
-            sib = path.with_suffix(path.suffix + f".{spec_id[:8]}.suggestion")
-            sib.write_text(code, encoding="utf-8")
-            written.append(sib)
-        else:
-            path.write_text(code, encoding="utf-8")
-            written.append(path)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if path.exists() and (time.time() - path.stat().st_mtime) < 86400:
+                # Recent human edit — write suggestion sibling
+                sib_name = f"{path.name}.{spec_id[:8]}.suggestion"
+                sib = path.parent / sib_name
+                # Verify sib is inside repo root
+                sib.resolve().relative_to(repo_root)
+                sib.write_text(code, encoding="utf-8")
+                written.append(sib)
+            else:
+                path.write_text(code, encoding="utf-8")
+                written.append(path)
+        except (ValueError, OSError) as e:
+            log("feature-build", f"  ⚠ skip {path}: {type(e).__name__}: {str(e)[:80]}")
+            continue
     return written
 
 
