@@ -45,6 +45,9 @@ image = (
     modal.Image.from_registry("nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04",
                               add_python="3.11")
     .apt_install("git", "curl", "build-essential")
+    # Build-system deps FIRST so any subsequent --no-build-isolation install
+    # works (v18 subprocess does this for liger/apollo at runtime).
+    .pip_install("pip>=24.0", "wheel>=0.45", "setuptools>=70", "packaging", "ninja")
     .pip_install(
         # Heavy deps — pre-install so v18 subprocess pip is a no-op for these
         "torch==2.5.1",
@@ -57,15 +60,13 @@ image = (
         "deepspeed>=0.15.0",
         "huggingface_hub>=0.25.0",
         "sentencepiece>=0.2.0",
-        "ninja",
-        "packaging",
+        "triton>=3.0.0",  # Triton ≥3 for Liger Kernel (installed at runtime by v18)
         extra_options="--extra-index-url https://download.pytorch.org/whl/cu121",
     )
-    # Frontier kernels enabled on A100/H100 (skipped on T4 in v18 due to SM<8.0)
-    .pip_install("liger-kernel", "apollo-torch", "flash-attn",
-                 extra_options="--no-build-isolation")
-    # Triton ≥3 for Liger Kernel
-    .pip_install("triton>=3.0.0")
+    # Liger Kernel + APOLLO + flash-attn → v18 self-installs these at runtime
+    # (it has try/except per-package, so a build failure on one doesn't kill
+    # the run). Keeping them OUT of the image build avoids long cold-starts
+    # on flash-attn compilation (15-30 min) when the run might not need it.
 )
 
 # ── Persistent volumes ─────────────────────────────────────────────────────
