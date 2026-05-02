@@ -22,11 +22,52 @@ adds reactions, and tracks votes via on_raw_reaction_add. Two-way flow:
 Webhook approach (commit d66fdc8) was one-way and replies were dropped.
 """
 from __future__ import annotations
-import datetime, json, os, sys, urllib.request, urllib.error
+import datetime, json, os, sys, time, urllib.request, urllib.error
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from axentx_pipeline import REPO_ROOT, log, call_llm, daemon_loop
 POLL_SEC = int(os.environ.get("CUSTOMER_POLL_SEC", "604800"))  # 7 days
+
+# Persistent gate prevents the same item from spamming Discord across daemon
+# restarts. Bug 2026-05-02: 4 identical polls posted within minutes because
+# `daemon_loop` runs work_fn immediately on start (no initial sleep) AND
+# restarting the daemon re-fired do_one() before POLL_SEC elapsed.
+GATE_FILE = REPO_ROOT / "state" / ".customer-poll-gate.json"
+MIN_REPOST_GAP_SEC = int(os.environ.get("CUSTOMER_POLL_MIN_GAP", str(6 * 86400)))  # 6 days
+
+
+def _load_gate() -> dict:
+    try:
+        return json.loads(GATE_FILE.read_text())
+    except Exception:
+        return {}
+
+
+def _save_gate(g: dict) -> None:
+    GATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    GATE_FILE.write_text(json.dumps(g, indent=2))
+
+
+def _was_recently_posted(item_id: str) -> bool:
+    g = _load_gate()
+    last = g.get("by_item", {}).get(item_id, 0)
+    return (time.time() - last) < MIN_REPOST_GAP_SEC
+
+
+def _record_posted(item_id: str) -> None:
+    g = _load_gate()
+    g.setdefault("by_item", {})[item_id] = time.time()
+    g["last_global"] = time.time()
+    _save_gate(g)
+
+
+def _too_soon_global() -> bool:
+    """Block ALL polls if we posted any in the last MIN_REPOST_GAP_SEC.
+    This is the safety net that defeats the "daemon restarts re-fire do_one"
+    bug regardless of which BUILD item is on top this cycle."""
+    g = _load_gate()
+    last = g.get("last_global", 0)
+    return (time.time() - last) < MIN_REPOST_GAP_SEC
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get("SUPABASE_SERVICE_KEY","")
@@ -77,6 +118,9 @@ def sb_insert_poll(item_id: str, hypothesis: str, questions: list) -> bool:
 
 
 def do_one() -> bool:
+    if _too_soon_global():
+        # Skip silently — verbose log every cycle would itself be spam
+        return False
     done_dir = REPO_ROOT / "state" / "swarm-shared" / "done"
     if not done_dir.exists():
         return False
@@ -96,7 +140,12 @@ def do_one() -> bool:
         log("customer-poll", "no BUILD opportunities this week")
         return False
     builds.sort(key=lambda i: -(i.get("verdict", {}).get("severity", 0)))
-    item = builds[0]
+    # Skip any item we already polled within the gap window — picks the
+    # next-best BUILD instead of re-firing the top one.
+    item = next((b for b in builds if not _was_recently_posted(b["id"])), None)
+    if item is None:
+        log("customer-poll", "all top BUILDs already polled this week — skipping")
+        return False
     bd = item.get("bd_verdict", {}) or {}
     hypothesis = bd.get("feature_one_liner") or bd.get("new_product_one_liner", "?")
     audience = item.get("verdict", {}).get("audience", "")
@@ -122,6 +171,7 @@ def do_one() -> bool:
 
     ok = sb_insert_poll(item["id"], hypothesis, questions)
     if ok:
+        _record_posted(item["id"])
         log("customer-poll", f"✓ enqueued for bot to post: {item['id'][:30]}  ({len(questions)} q's)")
     return ok
 
