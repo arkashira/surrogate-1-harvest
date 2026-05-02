@@ -1,5 +1,5 @@
 [Unit]
-Description=axentx dataset-mirror — pull on-topic public datasets to training-pairs every 1h
+Description=axentx dataset-mirror — streaming pull of public datasets, threaded, cross-VM coordinated
 After=network-online.target
 Wants=network-online.target
 
@@ -10,11 +10,15 @@ WorkingDirectory=/opt/surrogate-1-harvest
 EnvironmentFile=/etc/surrogate-coordinator.env
 Environment=PYTHONUNBUFFERED=1
 Environment=REPO_ROOT=/opt/surrogate-1-harvest
+# 4 worker threads default — override via MIRROR_WORKERS env per VM
+# (Kamatera 8GB can do 6, GCP e2-micro stays at 2 for memory).
 ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-dataset-mirror-daemon.py
 Restart=always
 RestartSec=20
-MemoryMax=384M
-TasksMax=16
+# Threaded daemon needs more RAM than the single-source predecessor:
+# ~80 MB per worker × 4 + buffer + python overhead ≈ 512 MB.
+MemoryMax=512M
+TasksMax=32
 
 [Install]
 WantedBy=multi-user.target

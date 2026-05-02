@@ -53,6 +53,7 @@ const RATE_LIMIT_EXEMPT_PATHS = new Set([
   "/health", "/", "/status", "/metrics", "/agent/heartbeat",
   "/seen/check", "/seen/mark", "/harvest/post", "/harvest/stats",
   "/queue/push", "/queue/claim", "/queue/advance", "/queue/stats",
+  "/mirror/lease", "/mirror/advance", "/mirror/stats",
 ]);
 
 const json = (obj, status = 200, extraHeaders = {}) =>
@@ -546,6 +547,126 @@ export default {
           "SELECT stage, COUNT(*) AS n FROM pipeline_items GROUP BY stage ORDER BY n DESC"
         ).all().catch(() => ({ results: [] }));
         return json(r.results || [], 200, { ...CORS });
+      }
+
+      // ── Streaming dataset-mirror coordination ──────────────────────────
+      // The dataset-mirror daemon runs in parallel on every VM (GCP, Kam, …)
+      // plus inside codespaces. To prevent two of them from pulling the same
+      // (source, offset) range twice we keep a shared cursor in D1 with an
+      // advisory lease. User directive 2026-05-02: '*ทุกที่*ทำงานพร้อมกัน
+      // แบบ sync state ระหว่างกันด้วย เป็น thread เลย stream มาเรื่อยๆ'.
+      //
+      // Schema (auto-created on first lease call so the worker stays
+      // self-bootstrapping):
+      //   mirror_cursors(
+      //     source TEXT PRIMARY KEY,
+      //     offset INTEGER DEFAULT 0,
+      //     owner TEXT,
+      //     lease_until INTEGER,         -- epoch sec
+      //     rows_fetched INTEGER DEFAULT 0,
+      //     last_advance_at INTEGER,
+      //     exhausted INTEGER DEFAULT 0)
+      async function ensureMirrorTable() {
+        try {
+          await env.DB.prepare(
+            `CREATE TABLE IF NOT EXISTS mirror_cursors (
+               source TEXT PRIMARY KEY,
+               offset INTEGER NOT NULL DEFAULT 0,
+               owner TEXT,
+               lease_until INTEGER,
+               rows_fetched INTEGER NOT NULL DEFAULT 0,
+               last_advance_at INTEGER,
+               exhausted INTEGER NOT NULL DEFAULT 0
+             )`
+          ).run();
+        } catch (_) { /* idempotent */ }
+      }
+
+      // POST /mirror/lease — claim the next batch from a source.
+      // Body: {source, claimer, batch?, ttl_sec?}
+      // Returns: {source, offset, batch} or {busy:true} or {exhausted:true}
+      if (path === "/mirror/lease" && request.method === "POST") {
+        await ensureMirrorTable();
+        let body;
+        try { body = await request.json(); }
+        catch (_) { return new Response("bad json", { status: 400 }); }
+        const source = String(body.source || "");
+        const claimer = String(body.claimer || "");
+        const batch = Math.min(parseInt(body.batch) || 500, 2000);
+        const ttl = parseInt(body.ttl_sec) || 300;
+        if (!source || !claimer) return new Response("missing", { status: 400 });
+        const now = Math.floor(Date.now() / 1000);
+        const leaseUntil = now + ttl;
+        // Insert row if missing (offset=0). Then atomically grab the lease
+        // iff it's free or stale.
+        await env.DB.prepare(
+          `INSERT OR IGNORE INTO mirror_cursors (source, offset) VALUES (?, 0)`
+        ).bind(source).run().catch(() => null);
+        const r = await env.DB.prepare(
+          `UPDATE mirror_cursors
+           SET owner = ?, lease_until = ?
+           WHERE source = ?
+             AND exhausted = 0
+             AND (owner IS NULL OR lease_until < ?)
+           RETURNING source, offset`
+        ).bind(claimer, leaseUntil, source, now).first().catch(() => null);
+        if (!r) {
+          // Either exhausted or busy — distinguish for the daemon
+          const cur = await env.DB.prepare(
+            "SELECT exhausted FROM mirror_cursors WHERE source = ?"
+          ).bind(source).first().catch(() => null);
+          if (cur && cur.exhausted) return json({ exhausted: true }, 200, { ...CORS });
+          return json({ busy: true }, 200, { ...CORS });
+        }
+        return json({ source: r.source, offset: r.offset, batch }, 200, { ...CORS });
+      }
+
+      // POST /mirror/advance — release lease + bump offset after a successful
+      // pull. Body: {source, claimer, rows_fetched, end_of_split?}
+      if (path === "/mirror/advance" && request.method === "POST") {
+        await ensureMirrorTable();
+        let body;
+        try { body = await request.json(); }
+        catch (_) { return new Response("bad json", { status: 400 }); }
+        const source = String(body.source || "");
+        const claimer = String(body.claimer || "");
+        const rows = Math.max(parseInt(body.rows_fetched) || 0, 0);
+        const eos = !!body.end_of_split;
+        if (!source || !claimer) return new Response("missing", { status: 400 });
+        const now = Math.floor(Date.now() / 1000);
+        // Only the lease holder may advance — prevents stale workers from
+        // overwriting a fresher cursor.
+        const r = await env.DB.prepare(
+          `UPDATE mirror_cursors
+           SET offset = offset + ?,
+               rows_fetched = rows_fetched + ?,
+               last_advance_at = ?,
+               exhausted = CASE WHEN ? = 1 THEN 1 ELSE exhausted END,
+               owner = NULL,
+               lease_until = NULL
+           WHERE source = ? AND owner = ?
+           RETURNING offset, rows_fetched, exhausted`
+        ).bind(rows, rows, now, eos ? 1 : 0, source, claimer).first().catch(() => null);
+        if (!r) return json({ ok: false, reason: "lost-lease" }, 409, { ...CORS });
+        return json({ ok: true, ...r }, 200, { ...CORS });
+      }
+
+      // GET /mirror/stats — all cursor positions + totals
+      if (path === "/mirror/stats" && request.method === "GET") {
+        await ensureMirrorTable();
+        const all = await env.DB.prepare(
+          `SELECT source, offset, rows_fetched, exhausted, owner,
+                  last_advance_at
+           FROM mirror_cursors ORDER BY rows_fetched DESC`
+        ).all().catch(() => ({ results: [] }));
+        const totals = await env.DB.prepare(
+          `SELECT COUNT(*) AS sources,
+                  SUM(rows_fetched) AS total_rows,
+                  SUM(CASE WHEN exhausted=1 THEN 1 ELSE 0 END) AS exhausted_count,
+                  SUM(CASE WHEN owner IS NOT NULL THEN 1 ELSE 0 END) AS in_use
+           FROM mirror_cursors`
+        ).first().catch(() => ({}));
+        return json({ totals, cursors: all.results || [] }, 200, { ...CORS });
       }
 
       // POST /seen/check  — bulk-check fingerprints against shared dedup
