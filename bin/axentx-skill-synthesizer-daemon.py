@@ -135,13 +135,16 @@ def collect_failures(since_min: int = 60) -> dict[str, list[dict]]:
         s = re.sub(r"\s+", " ", s).strip().lower()
         return s[:120]
 
-    # Tail journalctl across all axentx daemons in one query
+    # Tail journalctl across all axentx daemons in one query.
+    # Limit to last N lines to keep query under 60s (full --since on a chatty
+    # fleet can pull MBs of logs and time out on small VMs).
     try:
         r = subprocess.run(
             ["journalctl", "--no-pager", "--output=cat",
              "-u", "axentx-*", "-u", "surrogate-*", "-u", "hermes-*",
-             f"--since=-{since_min}m"],
-            capture_output=True, text=True, timeout=20,
+             "-n", "5000",  # last N lines instead of time window
+             "--grep", "⚠|✗|ERROR|FAIL|exception|fatal|Traceback"],
+            capture_output=True, text=True, timeout=60,
         )
         for line in (r.stdout or "").splitlines():
             if not re.search(r"⚠|✗|ERROR|FAIL|exception|fatal|Traceback",

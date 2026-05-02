@@ -303,25 +303,30 @@ _STRONG_CHAIN = [
 
 
 def call_llm_strong(prompt: str, system: str = "", max_tokens: int = 2000,
-                    timeout: int = 60) -> str:
+                    timeout: int = 60, allow_degrade: bool = False) -> str:
     """Decision-grade LLM call — top-tier reasoning models only.
 
     Use this for BD verdicts, release approvals, root-cause analysis,
     architecture decisions. Skips Workers AI fast-path + small models +
-    surrogate-1 v1 fallback. Falls through the chain on rate-limit, raises
-    if EVERY strong provider failed (caller can degrade to call_llm).
+    surrogate-1 v1 fallback.
+
+    If `allow_degrade=True` and every strong provider fails, falls
+    through to the regular `call_llm()` (wider provider net, mid-tier
+    quality). Default False — surface the failure so the caller can
+    decide policy.
     """
     messages: list[dict] = []
     if system:
         messages.append({"role": "system", "content": system[:8000]})
     messages.append({"role": "user", "content": prompt[:16000]})
-    last_err: str | None = None
+    errors: list[str] = []
     for name, url, env_key, model in _STRONG_CHAIN:
         # Some keys have alternates — handle the common aliases gracefully
         key = (os.environ.get(env_key)
                or (os.environ.get("XAI_API_KEY") if env_key == "GROK_API_KEY" else None)
                or (os.environ.get("NVIDIA_API_KEY") if env_key == "NVIDIA_NIM_API_KEY" else None))
         if not key:
+            errors.append(f"{name}: no key")
             continue
         body = {"model": model, "messages": messages,
                 "max_tokens": max_tokens, "temperature": 0.2}
@@ -337,10 +342,23 @@ def call_llm_strong(prompt: str, system: str = "", max_tokens: int = 2000,
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 d = json.loads(r.read())
                 return d["choices"][0]["message"]["content"]
+        except urllib.error.HTTPError as e:
+            try:
+                detail = e.read().decode()[:200]
+            except Exception:
+                detail = ""
+            errors.append(f"{name}: HTTP {e.code} {detail}")
         except Exception as e:
-            last_err = f"{name}: {e}"
-            continue
-    raise RuntimeError(f"call_llm_strong: all strong providers failed; last={last_err}")
+            errors.append(f"{name}: {type(e).__name__}: {str(e)[:80]}")
+    if allow_degrade:
+        try:
+            return call_llm(prompt, system, max_tokens, timeout)
+        except Exception as e:
+            errors.append(f"degraded-call_llm: {e}")
+    raise RuntimeError(
+        f"call_llm_strong: all {len(errors)} strong providers failed | "
+        + " | ".join(errors[:6])
+    )
 
 
 def synthesize(prompt: str, system: str = "", n_attempts: int = 3,

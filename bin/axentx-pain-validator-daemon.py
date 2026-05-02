@@ -184,8 +184,12 @@ def do_one_validation() -> bool:
         f"Output strict JSON validation verdict per schema."
     )
     try:
+        # Validator is permissive — if every strong provider fails (rate-
+        # limit storm), we'd rather get a mid-tier verdict than no verdict.
+        # BD itself runs strict (allow_degrade=False).
         out = call_llm_strong(user, system=VALIDATE_SYSTEM,
-                              max_tokens=900, timeout=45)
+                              max_tokens=900, timeout=45,
+                              allow_degrade=True)
     except Exception as e:
         log("validator", f"  ⚠ strong-llm failed: {e}; passing through to BD")
         item["validator_verdict"] = {
