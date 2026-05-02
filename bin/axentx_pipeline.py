@@ -212,6 +212,27 @@ def _call_codespace_ollama(messages: list, max_tokens: int, timeout: int) -> str
     return d["choices"][0]["message"]["content"]
 
 
+def _call_kamatera_ollama(messages: list, max_tokens: int, timeout: int) -> str:
+    """Kamatera VM running ollama (Qwen2.5-Coder-7B 5-bit). Only reachable
+    from the GCP egress IP via ufw — 2026-05-02 firewall rule. Different IP
+    family from codespace (private GH range) so a single AS-wide block on
+    GitHub does not also block this. Use as 2nd codespace fallback."""
+    base = os.environ.get("KAMATERA_LLM_URL", "")
+    if not base:
+        raise RuntimeError("no KAMATERA_LLM_URL")
+    model = os.environ.get("KAMATERA_LLM_MODEL", "qwen2.5-coder:7b-instruct-q5_K_M")
+    url = base.rstrip("/") + "/v1/chat/completions"
+    body = {"model": model, "messages": messages,
+            "max_tokens": max_tokens, "temperature": 0.3}
+    req = urllib.request.Request(
+        url, data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json", "User-Agent": UA_BROWSER},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        d = json.loads(r.read())
+    return d["choices"][0]["message"]["content"]
+
+
 def _hf_inference(messages: list, max_tokens: int, timeout: int,
                   model: str | None = None) -> str:
     """Hugging Face Serverless Inference Router — uses 3rd-party providers
@@ -372,6 +393,20 @@ def call_llm(prompt: str, system: str = "", max_tokens: int = 1500,
         except Exception as e:
             _cooldown("Codespace-LLM", 120)
             last_err = f"Codespace-LLM: {e} (after {last_err})"
+
+    # Kamatera ollama (Qwen2.5-Coder-7B 5-bit, slightly higher quality than
+    # codespace's 4-bit). Independent VM, independent IP — used when codespace
+    # is mid-restart or has hit its 24h-keep-alive eviction. Internal-only:
+    # ufw on Kam allows port 11434 from GCP egress IP only.
+    if _provider_ready("Kamatera-LLM") and os.environ.get("KAMATERA_LLM_URL"):
+        try:
+            return _call_kamatera_ollama(messages, max_tokens, max(timeout, 60))
+        except urllib.error.HTTPError as e:
+            _cooldown("Kamatera-LLM", _COOLDOWN_DEFAULT)
+            last_err = f"Kamatera-LLM: HTTP {e.code} (after {last_err})"
+        except Exception as e:
+            _cooldown("Kamatera-LLM", 120)
+            last_err = f"Kamatera-LLM: {e} (after {last_err})"
 
     # Gemini (different API shape — handled separately)
     if _provider_ready("Gemini"):
