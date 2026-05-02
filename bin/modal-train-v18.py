@@ -101,12 +101,20 @@ hf_cache_vol = modal.Volume.from_name("surrogate1-hf-cache", create_if_missing=T
     ],
 )
 def train(
-    base_model: str = "qwen2.5-coder-32b",     # v18 alias → Qwen2.5-Coder-32B-Instruct
+    # 2026-05-02 audit on HF Hub: pick newest model that fits single H100-80GB
+    # at 4-bit + LoRA r=64 + grads + activations.
+    #   Qwen3.6-35B-A3B   72 GB BF16 → 4-bit ≈ 18 GB; MoE 3B-active. 2026-04-24.
+    #   Qwen3.6-27B       56 GB BF16 → 4-bit ≈ 14 GB; dense.        2026-04-24.
+    #   GLM-4.7-Flash     62 GB BF16 → 4-bit ≈ 16 GB; GLM family.   2026-01-29.
+    #   GLM-5 / 5.1       1.5 TB BF16 → 4-bit 377 GB → NEEDS 8×H100 cluster.
+    # Default: Qwen3.6-35B-A3B (newest + biggest fitting). Override via
+    # --base-model qwen3.6-27b (dense, simpler SFT) or glm-4.7-flash.
+    base_model: str = "qwen3.6-35b-a3b",
     max_samples: int = 80000,
     epochs: float = 1.0,
     lora_r: int = 64,                            # bigger r on bigger GPU
     seq_len: int = 4096,
-    learning_rate: float = 1e-4,                 # conservative for 32B
+    learning_rate: float = 1e-4,                 # conservative for 27-35B
     sur_lora_init: str = "loftq+pissa",          # V15 — best init combo
     sur_lora_plus_ratio: str = "16.0",           # V16
     spectrum_top_fraction: str = "0.5",          # V17
@@ -199,7 +207,7 @@ def train(
 @app.local_entrypoint()
 def main(
     gpu: str = "H100-80GB",
-    base_model: str = "qwen2.5-coder-32b",
+    base_model: str = "qwen3.6-35b-a3b",
     max_samples: int = 80000,
     epochs: float = 1.0,
     lora_r: int = 64,
