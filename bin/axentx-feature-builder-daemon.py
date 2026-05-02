@@ -83,6 +83,50 @@ HEADER_PATTERNS = [
 ]
 CODE_BLOCK = re.compile(r"```([a-zA-Z0-9+_-]*)\n(.*?)\n```", re.DOTALL)
 
+# Extensions where a markdown heading ('## ' / '### ' at start of line) is
+# never legitimate inside a code file — when the LLM forgets a closing fence
+# the regex over-captures and pulls in the next ## review / ## qa section.
+# Truncate the captured code at the first such line for these.
+CODE_EXTS_NO_MD_HEADERS = {
+    ".py", ".pyi", ".js", ".ts", ".tsx", ".jsx", ".mjs", ".cjs",
+    ".go", ".rs", ".java", ".kt", ".swift", ".rb", ".php",
+    ".sh", ".bash", ".zsh", ".fish",
+    ".sql", ".graphql", ".gql",
+    ".tf", ".tfvars", ".hcl",
+    ".html", ".css", ".scss", ".less",
+    ".json", ".jsonl", ".yml", ".yaml", ".toml", ".ini", ".cfg", ".conf",
+}
+# A markdown H2/H3 line at column 0. dev-daemon sections always look like
+# '## review — reviewer @ ...' or '## qa — qa @ ...' or '### N. ...'.
+_MD_HEADING_LINE = re.compile(r"^(?:## |### \d+\. )", re.MULTILINE)
+
+
+def _strip_md_leakage(code: str, ext: str) -> str:
+    """Cut code at the first markdown-heading line for code-file extensions.
+
+    Caused by LLM specs missing a closing ``` fence — non-greedy regex then
+    over-captures into the next ## review / ## qa section. Verified by
+    inspecting axentx/Costinel discovery/manifest.py @ b5b0057 (3367B file
+    where bytes 1476-end were prose from review/qa sections).
+    """
+    if ext not in CODE_EXTS_NO_MD_HEADERS:
+        return code
+    m = _MD_HEADING_LINE.search(code)
+    if not m:
+        return code
+    return code[:m.start()].rstrip() + "\n"
+
+
+def _is_valid_python(code: str) -> bool:
+    try:
+        import ast
+        ast.parse(code)
+        return True
+    except SyntaxError:
+        return False
+    except Exception:
+        return True  # don't block on weird parse-errors
+
 # File extensions we will write — anything else is suspicious (LLM may
 # hallucinate paths for shell snippets, sample logs, etc.). Whitelist
 # instead of blacklist: easier to add than to anticipate weird ones.
@@ -175,8 +219,19 @@ def parse_spec(md_path: Path) -> list[tuple[Path, str, str]]:
             continue
         lang = cb.group(1) or ""
         code = cb.group(2)
+        # Strip markdown-heading leakage when a closing fence was missing
+        # in the source spec — the regex would otherwise over-capture into
+        # the next ## review / ## qa section.
+        ext = safe.suffix.lower()
+        code = _strip_md_leakage(code, ext)
         # Skip empty code blocks or single-word "TBD" placeholders
         if not code.strip() or len(code.strip()) < 8:
+            continue
+        # For Python: refuse to write syntactically-invalid code. Logs the
+        # rejection so we can audit which specs produce garbage.
+        if ext == ".py" and not _is_valid_python(code):
+            log("feature-build",
+                f"  ⚠ skip {safe.name}: py syntax invalid after md-strip")
             continue
         out.append((safe, lang, code))
     return out
