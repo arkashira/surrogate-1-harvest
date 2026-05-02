@@ -48,20 +48,31 @@ while true; do
     h=${h:-0}
     if [ "$h" -ge "$WHS" ] 2>/dev/null && [ "$h" -lt "$WHE" ] 2>/dev/null; then
         # Iterate fleet members. Each line: TOKEN \t CS_NAME \t ACCOUNT
+        # Bypass `gh codespace start` (Go runtime panic on this gh build)
+        # and hit the REST API directly: POST /user/codespaces/<name>/start.
+        # State query: GET /user/codespaces/<name> returns {state:"Shutdown"|...}.
         echo "$CS_FLEET" | while IFS=$'\t' read -r tok name acct; do
             [ -n "$tok" ] && [ -n "$name" ] || continue
             url="https://${name}-11434.app.github.dev"
-            state=$(GH_TOKEN=$tok gh codespace view -c "$name" --json state -q .state 2>/dev/null || echo "unknown")
+            state=$(curl -sf -m 8 -H "Authorization: Bearer $tok" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/user/codespaces/$name" \
+                | python3 -c 'import sys,json;print(json.load(sys.stdin).get("state","?"))' 2>/dev/null || echo "?")
             if [ "$state" != "Available" ]; then
-                log "  [$acct] state=$state — starting"
-                # Capture start output so we know if it actually triggered
-                start_out=$(GH_TOKEN=$tok gh codespace start -c "$name" 2>&1 | tail -1)
-                log "    start: ${start_out:-no-output}"
-                # Codespaces take 30-90s to fully boot + ollama start. Poll up
-                # to 120s before giving up so /api/tags returns 200, not 502.
-                for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+                log "  [$acct] state=$state — starting via REST"
+                start_resp=$(curl -sS -m 30 -X POST \
+                    -H "Authorization: Bearer $tok" \
+                    -H "Accept: application/vnd.github+json" \
+                    "https://api.github.com/user/codespaces/$name/start" \
+                    -w "%{http_code}" -o /dev/null 2>&1)
+                log "    start REST: http=$start_resp"
+                # Poll up to 150s for Available (codespace boot ~30-60s + ollama 30-60s)
+                for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
                     sleep 10
-                    state2=$(GH_TOKEN=$tok gh codespace view -c "$name" --json state -q .state 2>/dev/null || echo "?")
+                    state2=$(curl -sf -m 6 -H "Authorization: Bearer $tok" \
+                        -H "Accept: application/vnd.github+json" \
+                        "https://api.github.com/user/codespaces/$name" \
+                        | python3 -c 'import sys,json;print(json.load(sys.stdin).get("state","?"))' 2>/dev/null || echo "?")
                     if [ "$state2" = "Available" ]; then
                         log "    [$acct] became Available after ${i}0s"
                         break
