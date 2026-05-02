@@ -40,8 +40,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from axentx_pipeline import (REPO_ROOT, log, call_llm, call_llm_strong,
                              daemon_loop)
 
-POLL_SEC = int(os.environ.get("RELEASE_POLL_SEC", "14400"))   # 4h (was 24h)
-MIN_COMMITS = int(os.environ.get("RELEASE_MIN_COMMITS", "5"))
+POLL_SEC = int(os.environ.get("RELEASE_POLL_SEC", "3600"))    # 1h (was 4h)
+MIN_COMMITS = int(os.environ.get("RELEASE_MIN_COMMITS", "3"))  # was 5
 PROJECTS_ROOT = Path(os.environ.get("AXENTX_ROOT", "/opt/axentx"))
 PROJECTS = ["Costinel", "vanguard", "airship", "workio", "surrogate-1"]
 DISCORD = os.environ.get("DISCORD_WEBHOOK", "")

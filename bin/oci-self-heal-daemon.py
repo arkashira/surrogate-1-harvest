@@ -41,6 +41,7 @@ SERVICES = {
     "axentx-scheduled-runner-daemon": "always-on replacement for timers",
     "axentx-pain-validator-daemon": "cross-source pain validation gate",
     "axentx-skill-synthesizer-daemon": "auto-synth skills + papers from failure patterns",
+    "axentx-hf-flusher-daemon": "D1 → HF Datasets batched flush",
 }
 
 

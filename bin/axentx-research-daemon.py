@@ -495,6 +495,72 @@ SOURCES = (
 SEEN_TTL_SEC = int(os.environ.get("RESEARCH_SEEN_TTL_SEC", "604800"))   # 7 days
 SEEN_CAP = int(os.environ.get("RESEARCH_SEEN_CAP", "1500"))             # was 5000
 
+# Cross-VM shared dedup via CF Worker /seen/check + /seen/mark.
+# Without this, GCP and Kamatera daemons fetch the same posts independently
+# (waste of LLM tokens). With this, both VMs share a single seen-set.
+SHARED_DEDUP_URL = os.environ.get(
+    "SHARED_DEDUP_URL",
+    "https://surrogate-1-cursor.ashira.workers.dev",
+)
+HF_STAGING_URL = os.environ.get(
+    "HF_STAGING_URL",
+    "https://surrogate-1-cursor.ashira.workers.dev/harvest/post",
+)
+import socket as _socket
+_HOST = _socket.gethostname()
+
+
+def shared_dedup_check(fps: list[str]) -> set[str]:
+    """Return the SUBSET of fps that the shared store has NOT seen yet."""
+    if not fps:
+        return set()
+    body = json.dumps({"kind": "pain-url", "fps": fps[:200]}).encode()
+    req = urllib.request.Request(
+        f"{SHARED_DEDUP_URL}/seen/check", data=body, method="POST",
+        headers={"Content-Type": "application/json", "User-Agent": UA},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            d = json.loads(r.read())
+        return set(d.get("unseen") or [])
+    except Exception:
+        # Fail-open: if the shared store is unreachable, treat all as unseen
+        # so we don't block research entirely. Local cursor still dedups.
+        return set(fps)
+
+
+def shared_dedup_mark(fps: list[str]) -> None:
+    if not fps:
+        return
+    body = json.dumps({"kind": "pain-url", "fps": fps[:200], "host": _HOST}).encode()
+    req = urllib.request.Request(
+        f"{SHARED_DEDUP_URL}/seen/mark", data=body, method="POST",
+        headers={"Content-Type": "application/json", "User-Agent": UA},
+    )
+    try:
+        urllib.request.urlopen(req, timeout=10)
+    except Exception:
+        pass  # best-effort
+
+
+def stage_post_to_hf_buffer(post: dict) -> None:
+    """Stage raw post to D1 buffer; a separate flusher batches into HF."""
+    body = json.dumps({
+        "source": post.get("source", ""),
+        "url": post.get("url", ""),
+        "title": post.get("title", "")[:500],
+        "body": post.get("body", "")[:6000],
+        "score": int(post.get("score", 0) or 0),
+    }).encode()
+    req = urllib.request.Request(
+        HF_STAGING_URL, data=body, method="POST",
+        headers={"Content-Type": "application/json", "User-Agent": UA},
+    )
+    try:
+        urllib.request.urlopen(req, timeout=8)
+    except Exception:
+        pass
+
 
 def load_cursor() -> dict:
     if CURSOR_FILE.exists():
@@ -537,11 +603,11 @@ def post_fingerprint(post: dict) -> str:
 
 def do_one_cycle() -> bool:
     c = load_cursor()
-    # seen now stored as [{fp, ts}, ...] — extract fingerprints for the
-    # in-memory dedup set during the cycle. New entries appended later
-    # carry the current timestamp.
+    # Local seen (cursor file) — fast, but per-VM. Shared dedup (CF D1)
+    # handles cross-VM coordination.
     seen = set(s["fp"] for s in c.get("seen", []) if isinstance(s, dict))
     fired = 0
+    new_fps_to_mark: list[str] = []  # batch shared-mark at cycle end
 
     for _ in range(SOURCES_PER_CYCLE):
         idx = c["src_idx"] % len(SOURCES)
@@ -557,12 +623,31 @@ def do_one_cycle() -> bool:
         n_total = len(posts)
         n_dup = 0; n_seen = 0; n_rejected = 0; n_low_sev = 0; n_dedupe = 0
 
+        # Stage raw posts to HF staging buffer (best-effort, fire-and-forget)
+        for p in posts[:15]:
+            stage_post_to_hf_buffer(p)
+
+        # Cross-VM dedup: ask shared store which fps are still unseen.
+        # Local cursor is the fast path; shared store catches the cross-VM case.
+        all_fps = [post_fingerprint(p) for p in posts]
+        local_unseen = [fp for fp in all_fps if fp not in seen]
+        if local_unseen:
+            shared_unseen = shared_dedup_check(local_unseen)
+        else:
+            shared_unseen = set()
+
         for post in posts:
             fp = post_fingerprint(post)
             if fp in seen:
                 n_seen += 1
                 continue
+            if fp not in shared_unseen and local_unseen:
+                # Another VM already saw this URL — skip to save LLM tokens
+                seen.add(fp)
+                n_seen += 1
+                continue
             seen.add(fp)
+            new_fps_to_mark.append(fp)
 
             # Ask LLM if this is a real pain point worth chasing
             prompt = (
@@ -656,7 +741,10 @@ def do_one_cycle() -> bool:
             merged.append({"fp": fp, "ts": now_ts})
     c["seen"] = merged
     save_cursor(c)
-    log(f"research-{WORKER_ID}", f"cycle done — {fired} new pain items pushed → bd-queue")
+    # Mark fingerprints as seen in the shared cross-VM store
+    if new_fps_to_mark:
+        shared_dedup_mark(new_fps_to_mark)
+    log(f"research-{WORKER_ID}", f"cycle done — {fired} new pain items pushed → bd-queue (cross-VM marked: {len(new_fps_to_mark)})")
     return fired > 0
 
 

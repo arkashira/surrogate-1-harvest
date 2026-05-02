@@ -47,7 +47,12 @@ const SPACES = [
 const RATE_LIMIT_PER_MIN = 100;
 // /agent/heartbeat exempt — 30 daemons × 60s heartbeat = 30 req/min from
 // the same shared NAT IP would otherwise eat the per-IP 100/60s budget.
-const RATE_LIMIT_EXEMPT_PATHS = new Set(["/health", "/", "/status", "/metrics", "/agent/heartbeat"]);
+// /seen/* and /harvest/* exempt — internal coordination traffic from
+// daemons across multiple VMs. Same reasoning as /agent/heartbeat.
+const RATE_LIMIT_EXEMPT_PATHS = new Set([
+  "/health", "/", "/status", "/metrics", "/agent/heartbeat",
+  "/seen/check", "/seen/mark", "/harvest/post", "/harvest/stats",
+]);
 
 const json = (obj, status = 200, extraHeaders = {}) =>
   new Response(JSON.stringify(obj), {
@@ -452,6 +457,80 @@ export default {
           renderDashboard(stats, datasets, spaces, a.results || [], traces.results || []),
           { headers: { "Content-Type": "text/html; charset=utf-8", ...CORS, "X-Trace-Id": traceId } }
         );
+      }
+
+      // POST /seen/check  — bulk-check fingerprints against shared dedup
+      // store. Body: {kind: "pain|raw", fps: ["fp1","fp2",...]}
+      // Returns: {seen: ["fp1","fp3"], unseen: ["fp2"]}
+      // (User directive 2026-05-02: 'ตอนนี้มี vm หลายที่แล้ว agent steam
+      // scape data mirror data set ต้องไวขึ้น... ที่ stamp state ที่ไหน
+      // ไปมาแล้ว ก็ต้องใช้ stamp ร่วมกัน ไม่ไปซ้ำ')
+      if (path === "/seen/check" && request.method === "POST") {
+        let body;
+        try { body = await request.json(); }
+        catch (_) { return new Response("bad json", { status: 400 }); }
+        const kind = String(body.kind || "default");
+        const fps = (Array.isArray(body.fps) ? body.fps : []).slice(0, 200);
+        if (!fps.length) return json({ seen: [], unseen: [] }, 200, { ...CORS });
+        const placeholders = fps.map(() => "?").join(",");
+        const r = await env.DB.prepare(
+          `SELECT fp FROM seen_stamps WHERE kind = ? AND fp IN (${placeholders})`
+        ).bind(kind, ...fps).all().catch(() => ({ results: [] }));
+        const seenSet = new Set((r.results || []).map(row => row.fp));
+        return json({
+          seen: fps.filter(f => seenSet.has(f)),
+          unseen: fps.filter(f => !seenSet.has(f)),
+        }, 200, { ...CORS });
+      }
+
+      // POST /seen/mark   — bulk-mark fingerprints as seen.
+      // Body: {kind, fps: [...], host: "..."}
+      if (path === "/seen/mark" && request.method === "POST") {
+        let body;
+        try { body = await request.json(); }
+        catch (_) { return new Response("bad json", { status: 400 }); }
+        const kind = String(body.kind || "default");
+        const host = String(body.host || "");
+        const fps = (Array.isArray(body.fps) ? body.fps : []).slice(0, 200);
+        if (!fps.length) return json({ inserted: 0 }, 200, { ...CORS });
+        const stmt = env.DB.prepare(
+          "INSERT OR IGNORE INTO seen_stamps (kind, fp, host) VALUES (?, ?, ?)"
+        );
+        const batch = fps.map(fp => stmt.bind(kind, fp, host));
+        const res = await env.DB.batch(batch).catch(() => null);
+        return json({
+          inserted: fps.length,
+          ok: !!res,
+        }, 200, { ...CORS });
+      }
+
+      // POST /harvest/post  — staging buffer for raw posts when HF is hot.
+      // Body: {source, url, title, body, score?}
+      // Daemons stage here; a separate cron drains to HF Datasets in batches.
+      if (path === "/harvest/post" && request.method === "POST") {
+        let body;
+        try { body = await request.json(); }
+        catch (_) { return new Response("bad json", { status: 400 }); }
+        const url2 = String(body.url || "");
+        if (!url2) return new Response("missing url", { status: 400 });
+        await env.DB.prepare(
+          `INSERT INTO harvested_pains (source, url, title, body, score)
+           VALUES (?, ?, ?, ?, ?)`
+        ).bind(
+          String(body.source || ""), url2,
+          String(body.title || "").slice(0, 500),
+          String(body.body || "").slice(0, 8000),
+          parseInt(body.score) || 0
+        ).run().catch(() => null);
+        return json({ ok: true }, 200, { ...CORS });
+      }
+
+      // GET /harvest/stats — current staging buffer size + HF push state
+      if (path === "/harvest/stats" && request.method === "GET") {
+        const r = await env.DB.prepare(
+          "SELECT COUNT(*) AS total, SUM(CASE WHEN pushed_to_hf=0 THEN 1 ELSE 0 END) AS pending FROM harvested_pains"
+        ).first().catch(() => ({ total: 0, pending: 0 }));
+        return json(r, 200, { ...CORS });
       }
 
       // POST /agent/heartbeat — daemons UPSERT their status here.
