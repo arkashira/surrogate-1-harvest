@@ -1,0 +1,17 @@
+[Unit]
+Description=axentx OCI A1.Flex watcher — polls free ARM capacity (was Mac launchd)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PATH=/usr/local/bin:/opt/oci-cli/bin:/usr/bin:/bin
+Environment=OCI_PROFILE=ashirafuse
+Environment=OCI_OCPUS=4
+Environment=OCI_MEM_GB=24
+Environment=POLL_MIN=15
+ExecStart=/bin/bash /opt/surrogate-1-harvest/bin/oci-a1-watcher.sh
+StandardOutput=journal
+StandardError=journal

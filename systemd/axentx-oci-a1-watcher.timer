@@ -1,0 +1,10 @@
+[Unit]
+Description=axentx OCI A1 watcher tick (every 15 min)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Unit=axentx-oci-a1-watcher.service
+
+[Install]
+WantedBy=timers.target
