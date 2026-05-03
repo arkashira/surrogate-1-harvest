@@ -7,7 +7,7 @@ Type=oneshot
 User=root
 WorkingDirectory=/root
 EnvironmentFile=/etc/surrogate-coordinator.env
-Environment=PATH=/usr/local/bin:/opt/oci-cli/bin:/usr/bin:/bin
+Environment=PATH=/usr/local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=OCI_PROFILE=ashirafuse
 Environment=OCI_OCPUS=4
 Environment=OCI_MEM_GB=24
