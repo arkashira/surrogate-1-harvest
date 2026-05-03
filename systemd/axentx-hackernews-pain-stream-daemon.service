@@ -1,0 +1,22 @@
+[Unit]
+Description=axentx hackernews-pain-stream — pulls product/pain signals into validator-queue
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=HN_PAIN_POLL_SEC=900
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-hackernews-pain-stream-daemon.py
+Restart=always
+RestartSec=60
+MemoryMax=256M
+TasksMax=8
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
