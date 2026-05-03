@@ -12,7 +12,7 @@ Environment=REPO_ROOT=/opt/surrogate-1-harvest
 ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-market-research-daemon.py
 Restart=always
 RestartSec=20
-MemoryMax=128M
+MemoryMax=256M
 TasksMax=8
 StandardOutput=journal
 StandardError=journal

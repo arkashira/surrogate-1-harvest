@@ -11,7 +11,7 @@ EnvironmentFile=/etc/surrogate-coordinator.env
 ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-scheduled-runner-daemon.py
 Restart=always
 RestartSec=15
-MemoryMax=128M
+MemoryMax=256M
 CPUQuota=15%
 
 [Install]
