@@ -108,16 +108,21 @@ def _sb(method: str, path: str, body=None, headers_extra=None):
 
 
 def already_seen(fp: str) -> bool:
-    rows = _sb("GET",
-               f"seen_stamps?fp=eq.{fp}&kind=eq.gh&select=fp&limit=1")
-    return bool(rows)
+    """Use existing RPC seen_check_bulk — share 'pain-url' kind with the
+    rest of the pipeline so the chain doesn't re-process URLs harvested
+    from any source."""
+    r = _sb("POST", "rpc/seen_check_bulk", {
+        "p_kind": "pain-url", "p_fps": [fp],
+    })
+    if isinstance(r, list) and r and isinstance(r[0], dict):
+        return bool(r[0].get("seen", False))
+    return False
 
 
 def stamp_seen(fp: str) -> None:
-    _sb("POST", "seen_stamps", {
-        "fp": fp, "kind": "gh", "host": "gh-deep-stream",
-        "seen_at": datetime.datetime.utcnow().isoformat() + "Z",
-    }, {"Prefer": "return=minimal,resolution=ignore-duplicates"})
+    _sb("POST", "rpc/seen_mark_bulk", {
+        "p_kind": "pain-url", "p_fps": [fp], "p_host": "gh-deep-stream",
+    })
 
 
 # ── GitHub ────────────────────────────────────────────────────────────────

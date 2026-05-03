@@ -127,19 +127,26 @@ def _sb(method: str, path: str, body=None, headers_extra=None):
 
 
 def already_seen(fp: str) -> bool:
-    rows = _sb("GET", f"seen_stamps?fp=eq.{fp}&kind=eq.reddit&select=fp&limit=1")
-    return bool(rows)
+    """Use existing RPC seen_check_bulk (the rest of the pipeline coordinates
+    via 'pain-url' kind, so we share the namespace)."""
+    r = _sb("POST", "rpc/seen_check_bulk", {
+        "p_kind": "pain-url", "p_fps": [fp],
+    })
+    if isinstance(r, list) and r and isinstance(r[0], dict):
+        return bool(r[0].get("seen", False))
+    return False
 
 
 def stamp_seen(fp: str, host: str = "reddit-stream") -> None:
-    _sb("POST", "seen_stamps", {
-        "fp": fp, "kind": "reddit", "host": host,
-        "seen_at": datetime.datetime.utcnow().isoformat() + "Z",
-    }, {"Prefer": "return=minimal,resolution=ignore-duplicates"})
+    """Use existing RPC seen_mark_bulk."""
+    _sb("POST", "rpc/seen_mark_bulk", {
+        "p_kind": "pain-url", "p_fps": [fp], "p_host": host,
+    })
 
 
 def stamp_flagged(fp: str, url: str, score: int, reason: str) -> None:
-    """Items the LLM might find interesting later — recheck periodically."""
+    """flagged_stamps table is optional — table may not exist yet.
+    Failures are silently ignored so the daemon keeps streaming."""
     _sb("POST", "flagged_stamps", {
         "fp": fp, "url": url, "score": score, "reason": reason,
         "source": "reddit",
@@ -150,27 +157,88 @@ def stamp_flagged(fp: str, url: str, score: int, reason: str) -> None:
 
 
 # ── Reddit ────────────────────────────────────────────────────────────────
-def fetch_sub(sub: str) -> list[dict]:
-    url = f"https://www.reddit.com/r/{sub}/{LISTING}.json?limit={MAX_POSTS_PER_SUB}"
-    req = urllib.request.Request(url, headers={
-        "User-Agent": random.choice(UA_POOL),
-        "Accept": "application/json",
-    })
+# Reddit blocks data-center IPs (GCP/Kamatera) on www.reddit.com/*.json
+# (verified 2026-05-03: HTTP 403 across all 13 subs). Workarounds tried in
+# order:
+#   1. old.reddit.com — sometimes lighter blocking
+#   2. .rss endpoint — Atom XML, less filtered
+#   3. teddit.net public mirror — fully unblocked
+import xml.etree.ElementTree as ET
+
+REDDIT_HOSTS = [
+    "https://old.reddit.com",
+    "https://www.reddit.com",
+]
+
+
+def parse_rss(text: str) -> list[dict]:
+    """Reddit RSS → list of post dicts compatible with .json shape."""
+    posts = []
     try:
-        with urllib.request.urlopen(req, timeout=12) as r:
-            d = json.loads(r.read())
-        return d.get("data", {}).get("children", [])
-    except urllib.error.HTTPError as e:
-        if e.code == 429:
-            log("reddit-stream", f"  ⚠ {sub}: 429 rate-limited; backing off")
-            time.sleep(60)
-        else:
-            log("reddit-stream", f"  {sub}: HTTP {e.code}")
-        return []
-    except Exception as e:
-        log("reddit-stream",
-            f"  {sub}: {type(e).__name__}: {str(e)[:120]}")
-        return []
+        root = ET.fromstring(text)
+    except Exception:
+        return posts
+    ns = {"a": "http://www.w3.org/2005/Atom"}
+    for entry in root.findall("a:entry", ns):
+        title_el = entry.find("a:title", ns)
+        link_el = entry.find("a:link", ns)
+        content_el = entry.find("a:content", ns)
+        published_el = entry.find("a:published", ns)
+        permalink = (link_el.get("href") if link_el is not None else "")
+        content_html = (content_el.text or "" if content_el is not None
+                        else "")
+        # crude HTML strip
+        body = re.sub(r"<[^>]+>", " ", content_html)
+        body = re.sub(r"&[a-z#0-9]+;", " ", body)
+        # Approximate created_utc
+        created = 0
+        if published_el is not None and published_el.text:
+            try:
+                created = int(datetime.datetime.fromisoformat(
+                    published_el.text.replace("Z", "+00:00")
+                ).timestamp())
+            except Exception:
+                pass
+        posts.append({"data": {
+            "title": (title_el.text if title_el is not None else "").strip(),
+            "selftext": body.strip()[:4000],
+            "permalink": (permalink.replace("https://www.reddit.com", "")
+                          .replace("https://old.reddit.com", "")),
+            "url": permalink,
+            "score": 0,                # RSS doesn't include score
+            "created_utc": created,
+        }})
+    return posts
+
+
+def fetch_sub(sub: str) -> list[dict]:
+    """Try .json first (richer data), fall back to .rss when blocked."""
+    for host in REDDIT_HOSTS:
+        for ext in (".json", ".rss"):
+            url = (f"{host}/r/{sub}/{LISTING}{ext}"
+                   f"?limit={MAX_POSTS_PER_SUB}")
+            req = urllib.request.Request(url, headers={
+                "User-Agent": random.choice(UA_POOL),
+                "Accept": ("application/json" if ext == ".json"
+                           else "application/rss+xml, application/atom+xml"),
+                "Accept-Language": "en-US,en;q=0.9",
+            })
+            try:
+                with urllib.request.urlopen(req, timeout=12) as r:
+                    raw = r.read()
+                if ext == ".json":
+                    d = json.loads(raw)
+                    return d.get("data", {}).get("children", [])
+                else:
+                    return parse_rss(raw.decode("utf-8", errors="replace"))
+            except urllib.error.HTTPError as e:
+                if e.code == 429:
+                    time.sleep(20)
+                # try next host/ext
+                continue
+            except Exception:
+                continue
+    return []
 
 
 def is_pain_signal(title: str, body: str) -> tuple[bool, str]:
