@@ -1,31 +1,33 @@
 #!/usr/bin/env python3
-"""axentx bucket archiver — stream large jsonls → Cloudflare R2 (free 10GB).
+"""axentx archiver — stream large jsonls → HuggingFace dataset (free).
+
+Pivoted 2026-05-03 from Cloudflare R2 to HF Hub because:
+  - R2 access keys must be created via Cloudflare dashboard (the
+    'Manage R2 API Tokens' page); the existing CF_API_TOKEN does not
+    have r2_admin scope, so we cannot bootstrap R2 creds without
+    interactive web action by the user.
+  - HF token (axentx admin) already in env. axentx/surrogate-1-archive
+    private dataset gives unlimited storage for the org. No new auth.
+  - Same byte-for-byte compression target (~5-10x via gzip).
+  - upload_file is one HTTP call (vs SigV4 sig + PUT), ~10 LOC vs 100.
 
 Watches local jsonl hotspots. Anything >ROTATE_MB:
   1. compress with gzip
-  2. upload to R2 bucket axentx-archive at path archive/YYYY-MM-DD/<host>/<name>.jsonl.gz
+  2. upload to axentx/surrogate-1-archive at
+     archive/YYYY-MM-DD/<host>/<filename>.gz
   3. delete local file (kept-tail already retained by disk-janitor)
 
-R2 free tier: 10GB storage + 10M Class-A ops/mo + 1M Class-B ops/mo.
-We use ~5MB/file × ~100 files/day = 500MB/day fits comfortably.
-
-Auth: CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID from env file.
-Uses S3-compatible API at https://<account>.r2.cloudflarestorage.com.
-No boto3 dependency — minimal urllib + sigv4 implementation.
+Idempotent. If upload fails (rate limit, network, auth) the local
+file stays — janitor will rotate-tail later if disk pressure hits.
 """
 from __future__ import annotations
 
 import datetime
 import gzip
-import hashlib
-import hmac
-import json
 import os
 import signal
 import sys
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 from socket import gethostname
 
@@ -35,21 +37,14 @@ from axentx_pipeline import log  # noqa: E402
 
 POLL_SEC = int(os.environ.get("ARCHIVER_POLL_SEC", "300"))
 ROTATE_MB = int(os.environ.get("ARCHIVER_ROTATE_MB", "100"))
+HF_TOKEN = os.environ.get("HF_TOKEN", "")
+HF_REPO = os.environ.get("ARCHIVER_HF_REPO", "axentx/surrogate-1-archive")
 HOSTNAME = gethostname()
-
-# R2 credentials. Use S3-compat keys derived from CF API token via the
-# Cloudflare dashboard's "Manage R2 API Tokens" page. For simplicity here
-# we expect R2_ACCESS_KEY_ID + R2_SECRET_ACCESS_KEY in env (per-bucket).
-CF_ACCT = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
-R2_ACCESS_KEY = os.environ.get("R2_ACCESS_KEY_ID", "")
-R2_SECRET = os.environ.get("R2_SECRET_ACCESS_KEY", "")
-R2_BUCKET = os.environ.get("R2_BUCKET", "axentx-archive")
-R2_ENDPOINT = (f"https://{CF_ACCT}.r2.cloudflarestorage.com"
-               if CF_ACCT else "")
 
 HOTSPOTS = [
     Path("/opt/surrogate-1-harvest/state"),
     Path("/home/ubuntu/axentx/surrogate/data/training-jsonl"),
+    Path("/opt/surrogate-1-state"),
 ]
 
 _stop = False
@@ -64,129 +59,96 @@ signal.signal(signal.SIGTERM, _on_signal)
 signal.signal(signal.SIGINT, _on_signal)
 
 
-# ── SigV4 (minimal, R2-compatible, no boto) ───────────────────────────────
-def _sign(key: bytes, msg: str) -> bytes:
-    return hmac.new(key, msg.encode(), hashlib.sha256).digest()
-
-
-def _signing_key(secret: str, date_stamp: str, region: str, service: str):
-    k_date = _sign(("AWS4" + secret).encode(), date_stamp)
-    k_region = _sign(k_date, region)
-    k_service = _sign(k_region, service)
-    k_signing = _sign(k_service, "aws4_request")
-    return k_signing
-
-
-def r2_put(key: str, body: bytes,
-           content_type: str = "application/octet-stream") -> bool:
-    """PUT object to R2 via S3-compat SigV4."""
-    if not (R2_ENDPOINT and R2_ACCESS_KEY and R2_SECRET):
-        return False
-    region = "auto"
-    service = "s3"
-    method = "PUT"
-    host = R2_ENDPOINT.replace("https://", "")
-    canonical_uri = f"/{R2_BUCKET}/{key}"
-    payload_hash = hashlib.sha256(body).hexdigest()
-
-    t = datetime.datetime.utcnow()
-    amz_date = t.strftime("%Y%m%dT%H%M%SZ")
-    date_stamp = t.strftime("%Y%m%d")
-
-    canonical_headers = (
-        f"host:{host}\n"
-        f"x-amz-content-sha256:{payload_hash}\n"
-        f"x-amz-date:{amz_date}\n"
-    )
-    signed_headers = "host;x-amz-content-sha256;x-amz-date"
-    canonical_request = (
-        f"{method}\n{canonical_uri}\n\n{canonical_headers}\n"
-        f"{signed_headers}\n{payload_hash}"
-    )
-
-    credential_scope = f"{date_stamp}/{region}/{service}/aws4_request"
-    string_to_sign = (
-        f"AWS4-HMAC-SHA256\n{amz_date}\n{credential_scope}\n"
-        + hashlib.sha256(canonical_request.encode()).hexdigest()
-    )
-    signing_key = _signing_key(R2_SECRET, date_stamp, region, service)
-    signature = hmac.new(signing_key, string_to_sign.encode(),
-                         hashlib.sha256).hexdigest()
-    auth = (
-        f"AWS4-HMAC-SHA256 "
-        f"Credential={R2_ACCESS_KEY}/{credential_scope}, "
-        f"SignedHeaders={signed_headers}, Signature={signature}"
-    )
-    req = urllib.request.Request(
-        f"{R2_ENDPOINT}{canonical_uri}", data=body, method=method,
-        headers={
-            "Host": host,
-            "x-amz-content-sha256": payload_hash,
-            "x-amz-date": amz_date,
-            "Authorization": auth,
-            "Content-Type": content_type,
-            "Content-Length": str(len(body)),
-        },
-    )
+def _ensure_hf() -> "object | None":
+    """Lazy-import HfApi so the daemon survives even if huggingface_hub
+    isn't installed in the venv yet — log + idle instead of crash."""
     try:
-        with urllib.request.urlopen(req, timeout=120) as r:
-            return 200 <= r.status < 300
-    except urllib.error.HTTPError as e:
-        log("archiver", f"  PUT {key}: HTTP {e.code} {e.read()[:160]}")
-        return False
+        from huggingface_hub import HfApi, create_repo
+    except ImportError:
+        log("archiver",
+            "⚠ huggingface_hub not installed — pip install in venv first")
+        return None
+    api = HfApi(token=HF_TOKEN or None)
+    # Ensure repo exists (idempotent — exist_ok=True)
+    try:
+        create_repo(HF_REPO, repo_type="dataset", token=HF_TOKEN or None,
+                    exist_ok=True, private=True)
     except Exception as e:
         log("archiver",
-            f"  PUT {key}: {type(e).__name__}: {str(e)[:120]}")
-        return False
+            f"  create_repo {HF_REPO}: {type(e).__name__}: {str(e)[:120]}")
+    return api
 
 
-def archive_file(path: Path) -> int:
+def archive_file(api, path: Path) -> int:
     """Compress + upload + delete. Returns bytes saved locally."""
     try:
         sz = path.stat().st_size
     except Exception:
         return 0
-    raw = path.read_bytes()
+    try:
+        raw = path.read_bytes()
+    except Exception as e:
+        log("archiver", f"  read fail {path}: {type(e).__name__}")
+        return 0
     body = gzip.compress(raw, compresslevel=6)
     today = datetime.datetime.utcnow().strftime("%Y-%m-%d")
-    key = f"archive/{today}/{HOSTNAME}/{path.name}.gz"
-    if not r2_put(key, body, "application/gzip"):
-        log("archiver", f"  ✗ upload failed: {path}")
+    remote = f"archive/{today}/{HOSTNAME}/{path.name}.gz"
+    try:
+        api.upload_file(
+            path_or_fileobj=body,
+            path_in_repo=remote,
+            repo_id=HF_REPO,
+            repo_type="dataset",
+            commit_message=(
+                f"archive {path.name} ({sz//1_000_000}MB→"
+                f"{len(body)//1_000_000}MB) from {HOSTNAME}"
+            ),
+        )
+    except Exception as e:
+        log("archiver",
+            f"  ✗ upload {path.name}: {type(e).__name__}: {str(e)[:160]}")
         return 0
-    # Verify upload by HEAD before deleting (simplified — trust 200 for now)
     log("archiver",
-        f"  ✓ archived {path.name}: {sz//1_000_000}MB → r2:{key} "
-        f"({len(body)//1_000_000}MB gzipped)")
-    path.unlink(missing_ok=True)
+        f"  ✓ {path.name}: {sz//1_000_000}MB → "
+        f"hf:{HF_REPO}/{remote} ({len(body)//1_000_000}MB gz)")
+    try:
+        path.unlink()
+    except Exception:
+        pass
     return sz
 
 
 def main() -> int:
-    if not (R2_ACCESS_KEY and R2_SECRET and CF_ACCT):
-        log("archiver",
-            "⚠ R2 creds not set (R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/"
-            "CLOUDFLARE_ACCOUNT_ID) — daemon idle until configured")
+    if not HF_TOKEN:
+        log("archiver", "⚠ HF_TOKEN not set — daemon idle")
+        # Don't exit; if env later becomes available we'll pick it up
     log("archiver",
-        f"start — poll {POLL_SEC}s, rotate when >{ROTATE_MB}MB → "
-        f"r2:{R2_BUCKET}")
+        f"start — poll {POLL_SEC}s, rotate when >{ROTATE_MB}MB → hf:{HF_REPO}")
+    api = _ensure_hf() if HF_TOKEN else None
+
     while not _stop:
         cycle_start = time.time()
+        if api is None and HF_TOKEN:
+            # Retry init on each cycle — package may have just installed
+            api = _ensure_hf()
+
         archived_total = 0
-        for hot in HOTSPOTS:
-            if _stop:
-                break
-            if not hot.exists():
-                continue
-            for f in hot.rglob("*.jsonl"):
+        if api is not None:
+            for hot in HOTSPOTS:
                 if _stop:
                     break
-                if f.is_symlink():
+                if not hot.exists():
                     continue
-                try:
-                    if f.stat().st_size > ROTATE_MB * 1_000_000:
-                        archived_total += archive_file(f)
-                except Exception:
-                    continue
+                for f in hot.rglob("*.jsonl"):
+                    if _stop:
+                        break
+                    if f.is_symlink():
+                        continue
+                    try:
+                        if f.stat().st_size > ROTATE_MB * 1_000_000:
+                            archived_total += archive_file(api, f)
+                    except Exception:
+                        continue
         if archived_total:
             log("archiver",
                 f"cycle archived {archived_total//1_000_000}MB total")
