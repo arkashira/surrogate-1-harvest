@@ -48,10 +48,12 @@ from transformers import (AutoTokenizer, AutoModelForCausalLM, TrainingArguments
     Trainer, DataCollatorForSeq2Seq, BitsAndBytesConfig)
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType
 
-# H200 141 GB → can fit 480B QLoRA. If H200 not available, falls back gracefully.
-BASE = os.environ.get("BASE_MODEL", "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8")
-MAX_SAMPLES = int(os.environ.get("MAX_SAMPLES", "30000"))   # 4 hr H200 fits ~30K samples
-HUB_ID = os.environ.get("HUB_MODEL_ID", "axentx/surrogate-1-coder-480b-a35b-v1")
+# H200 141 GB → fits Qwen3-Coder-30B-A3B (3B-active MoE) at 4-bit + LoRA r=32
+# easily, with headroom for 4096-seq context. 480B-A35B was the previous
+# default but doesn't fit even at 4-bit (>240GB). Override via env if needed.
+BASE = os.environ.get("BASE_MODEL", "Qwen/Qwen3-Coder-30B-A3B-Instruct")
+MAX_SAMPLES = int(os.environ.get("MAX_SAMPLES", "35000"))   # 4hr H200 ≈ 35K
+HUB_ID = os.environ.get("HUB_MODEL_ID", "axentx/surrogate-1-30B-A3B-v1.5")
 
 print(f"━━━ Surrogate-1 LoRA on Lightning H200 ━━━")
 print(f"base={BASE}  samples={MAX_SAMPLES:,}  hub={HUB_ID}")
@@ -134,8 +136,25 @@ print(f"▶ connecting/creating Studio: {studio_name}")
 try:
     # SDK reads auth from env LIGHTNING_USER_ID + LIGHTNING_API_KEY which the
     # bash wrapper exported above. Don't pass them as kwargs (TypeError).
-    studio = Studio(name=studio_name, teamspace="default", create_ok=True)
-    studio.start(machine=Machine.H200)
+    # ashiradevops's actual teamspace per ~/.note (default-teamspace doesn't
+    # exist — uses 'training-optimization-project'). Override via env.
+    teamspace = os.environ.get("LIGHTNING_TEAMSPACE",
+                               "training-optimization-project")
+    studio = Studio(name=studio_name, teamspace=teamspace, create_ok=True)
+    # H200 may be capacity-blocked; prefer-fall-through to A100 then L40S
+    # so the 4hr session still trains something rather than waiting forever.
+    started = False
+    for machine in (Machine.H200, Machine.A100_X_8, Machine.A100_X_4,
+                    Machine.L40S, Machine.L4):
+        try:
+            studio.start(machine=machine)
+            print(f"  ✅ Studio started on {machine}")
+            started = True
+            break
+        except Exception as e:
+            print(f"  ⚠ {machine} not available: {type(e).__name__}: {str(e)[:120]}")
+    if not started:
+        raise RuntimeError("no GPU machine available across H200/A100/L40S/L4")
     print(f"  ✅ Studio H200 started")
     studio.upload_file(script_path, "train.py")
     print(f"  ✅ uploaded train.py")
