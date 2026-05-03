@@ -128,21 +128,11 @@ def fetch_pending(limit: int) -> list[dict]:
             f"&order=harvested_at.asc&limit={limit}"
             f"&select=id,source,url,title,body,score,harvested_at"
         )
-        if rows:
-            return rows
-        # Empty result from Supabase = no pending; fall through to D1 only
-        # if Supabase explicitly errored (rows=[] both for empty + error).
-        # We can't distinguish — but this is harmless; D1 will return [] too
-        # if it's also empty.
-    r = _d1_query(
-        "SELECT id, source, url, title, body, score, harvested_at "
-        "FROM harvested_pains WHERE pushed_to_hf = 0 "
-        "ORDER BY harvested_at ASC LIMIT ?", [limit],
-    )
-    try:
-        return (r.get("result") or [{}])[0].get("results") or []
-    except Exception:
-        return []
+        # Supabase is canonical now. Don't fall back to D1 — it returns 401
+        # on this token (D1 access deprecated 2026-05-03) which floods the
+        # log + drives 997 restarts. Supabase empty = pipeline empty, OK.
+        return rows or []
+    return []
 
 
 def mark_pushed(ids: list[int]) -> None:
@@ -165,16 +155,9 @@ def mark_pushed(ids: list[int]) -> None:
                     f"  ⚠ sb delete chunk {i//50} failed ({type(e).__name__}); "
                     "row stays for retry next cycle (idempotent)")
         return
-    # Legacy D1 fallback
-    for i in range(0, len(ids), 50):
-        chunk = ids[i:i + 50]
-        placeholders = ",".join("?" for _ in chunk)
-        r = _d1_query(
-            f"DELETE FROM harvested_pains WHERE id IN ({placeholders})",
-            [int(x) for x in chunk],
-        )
-        if not r:
-            log("hf-flusher", f"  ⚠ d1 delete chunk {i//50} failed — will reflush")
+    # Legacy D1 fallback removed 2026-05-03 — D1 returns 401 on the
+    # current token (deprecated path). Supabase is the single coord plane.
+    log("hf-flusher", "  ⚠ no Supabase config — cannot mark pushed")
 
 
 def push_to_hf(rows: list[dict]) -> str:

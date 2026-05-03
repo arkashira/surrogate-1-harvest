@@ -316,16 +316,29 @@ def call_llm(prompt: str, system: str = "", max_tokens: int = 1500,
     cf_token = (os.environ.get("CLOUDFLARE_AI_GATEWAY_TOKEN")
                 or os.environ.get("CLOUDFLARE_API_TOKEN", ""))
     cf_gw = os.environ.get("CF_AI_GATEWAY_NAME", "axentx-llm")
-    cf_url = (
-        f"https://gateway.ai.cloudflare.com/v1/{cf_acct}/{cf_gw}/"
-        f"workers-ai/v1/chat/completions"
-        if cf_acct else ""
-    )
+
+    # CF AI Gateway proxy URLs — same providers, but routed through gateway
+    # for caching (5min TTL = repeat-query free), rate-limit smoothing, and
+    # observability. Verified 2026-05-03: gateway 'axentx-llm' created with
+    # token edit-scope. Gateway proxies to upstream providers using their
+    # original API key (cf_token ignored on inference, used only on the
+    # gateway hop for auth+caching).
+    def _cf_proxy(provider_path: str) -> str:
+        return (f"https://gateway.ai.cloudflare.com/v1/{cf_acct}/{cf_gw}/"
+                f"{provider_path}") if cf_acct else ""
 
     chains = [
-        # CF AI Gateway → Workers AI (cached @ gateway, free 10K req/day).
-        ("CF-Gateway-WAI", cf_url, cf_token,
-         "@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
+        # Through CF Gateway — caches identical prompts. Workers AI quota
+        # already exhausted today (10K neurons), so listed but cooldown'd.
+        ("CF-Gateway-WAI", _cf_proxy("workers-ai/v1/chat/completions"),
+         cf_token, "@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
+        # Same Cerebras call but through gateway — caching + observability.
+        # Same upstream key, gateway just records + caches.
+        ("CF-Gateway-Cerebras", _cf_proxy("cerebras/v1/chat/completions"),
+         os.environ.get("CEREBRAS_API_KEY"),
+         "qwen-3-235b-a22b-instruct-2507"),
+        ("CF-Gateway-Groq", _cf_proxy("groq/openai/v1/chat/completions"),
+         os.environ.get("GROQ_API_KEY"), "llama-3.3-70b-versatile"),
         ("Groq",          "https://api.groq.com/openai/v1/chat/completions",
          os.environ.get("GROQ_API_KEY"), "llama-3.3-70b-versatile"),
         # Cerebras 2026-05-03: llama-3.3-70b removed, qwen-3-235b-a22b
@@ -931,7 +944,7 @@ def advance(item: dict, src_path: Path, next_stage: str,
     Writes to D1 + FS atomically via write_item()."""
     if not item.get("trace_id"):
         item["trace_id"] = new_trace_id()
-    item["history"].append({
+    item.setdefault("history", []).append({
         "stage": item.get("stage"),
         "actor": actor,
         "output": output[:6000],
@@ -959,7 +972,7 @@ def advance(item: dict, src_path: Path, next_stage: str,
 
 def fail(item: dict, src_path: Path, actor: str, err: str) -> None:
     """Mark item as failed (move to done with failure note)."""
-    item["history"].append({
+    item.setdefault("history", []).append({
         "stage": item.get("stage"),
         "actor": actor,
         "output": f"FAILED: {err}",

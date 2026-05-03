@@ -69,10 +69,21 @@ Plain markdown only — no JSON wrapping, no preamble.
 
 
 def git(repo: Path, *args: str, timeout: int = 20) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["git", "-C", str(repo), *args],
-        capture_output=True, text=True, timeout=timeout,
-    )
+    """Run git with timeout. Returns a CompletedProcess-shaped object even
+    when timeout fires — caller's existing returncode!=0 path handles it
+    as 'no result' instead of crashing the whole daemon (which racked up
+    1156 restarts on this exact failure mode 2026-05-03)."""
+    try:
+        return subprocess.run(
+            ["git", "-C", str(repo), *args],
+            capture_output=True, text=True, timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        # Synthetic non-zero result so caller treats as 'git command failed'
+        return subprocess.CompletedProcess(
+            args=("git", "-C", str(repo), *args),
+            returncode=124, stdout="", stderr=f"timeout {timeout}s",
+        )
 
 
 def bump_version(prev: str, kind: str) -> str:
