@@ -142,21 +142,45 @@ def call_llm(messages: list, max_tokens: int = 1500, timeout: int = 30) -> str:
         ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions",
          os.environ.get("OPENROUTER_API_KEY"),
          "meta-llama/llama-3.3-70b-instruct:free"),
+        # Multiple OpenRouter free models — increases the chain's effective
+        # depth without needing new providers. Each model has its own
+        # rate-limit bucket on OpenRouter side.
+        ("OpenRouter-Kimi", "https://openrouter.ai/api/v1/chat/completions",
+         os.environ.get("OPENROUTER_API_KEY"),
+         "moonshotai/kimi-k2:free"),
+        ("OpenRouter-DeepSeek", "https://openrouter.ai/api/v1/chat/completions",
+         os.environ.get("OPENROUTER_API_KEY"),
+         "deepseek/deepseek-chat-v3.1:free"),
+        ("OpenRouter-Qwen", "https://openrouter.ai/api/v1/chat/completions",
+         os.environ.get("OPENROUTER_API_KEY"),
+         "qwen/qwen3-coder:free"),
+        # Chutes endpoint changed; using their newer /v1/chat URL + Llama
+        # which is more reliably served. If still 404'ing, the cooldown
+        # path below falls through cleanly to the next provider.
         ("Chutes", "https://llm.chutes.ai/v1/chat/completions",
-         os.environ.get("CHUTES_API_KEY"), "deepseek-ai/DeepSeek-V3"),
+         os.environ.get("CHUTES_API_KEY"),
+         "meta-llama/Llama-3.3-70B-Instruct"),
         ("GitHub-Models", "https://models.inference.ai.azure.com/chat/completions",
          os.environ.get("GITHUB_MODELS_TOKEN"), "gpt-4o-mini"),
+        # DeepSeek native API — separate from OpenRouter free tier
+        ("DeepSeek", "https://api.deepseek.com/v1/chat/completions",
+         os.environ.get("DEEPSEEK_API_KEY"), "deepseek-chat"),
+        # Together.ai free Llama models
+        ("Together", "https://api.together.xyz/v1/chat/completions",
+         os.environ.get("TOGETHER_API_KEY"),
+         "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free"),
     ]
-    # Skip providers cooling down from recent 429s
-    chains = [c for c in chains_all if _provider_cooldown.get(c[0], 0) <= now_ts]
-    if not chains:
-        # all in cooldown — try the one closest to ready
-        chains = [min(chains_all, key=lambda c: _provider_cooldown.get(c[0], 0))]
+    # Cooldown determines ORDER (prefer-fresh-first), NOT exclusion. The
+    # old code excluded providers in cooldown, leaving only Chutes (404)
+    # + Gemini (429) when all main providers had hit 429 simultaneously.
+    chains = sorted(chains_all,
+                    key=lambda c: _provider_cooldown.get(c[0], 0))
     last_err = None
     for name, url, key, model in chains:
-        if not key: continue
+        if not key:
+            continue
         body = json.dumps({"model": model, "messages": messages,
-                           "max_tokens": max_tokens, "temperature": 0.4}).encode()
+                           "max_tokens": max_tokens, "temperature": 0.7}).encode()
         req = urllib.request.Request(url, data=body, headers={
             "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
@@ -165,36 +189,83 @@ def call_llm(messages: list, max_tokens: int = 1500, timeout: int = 30) -> str:
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 d = json.loads(r.read())
-            log.info(f"LLM ok via {name}/{model}")
-            return d["choices"][0]["message"]["content"]
+            content = d["choices"][0]["message"]["content"]
+            if content and content.strip():
+                log.info(f"LLM ok via {name}/{model}")
+                return content
+            last_err = f"{name}: empty response"
+            continue
         except urllib.error.HTTPError as e:
+            # 429 → 5min cooldown (was 60s, too short — providers re-tried
+            # back-to-back when fleet of users hit the same window).
             if e.code == 429:
-                _provider_cooldown[name] = now_ts + 60
+                _provider_cooldown[name] = now_ts + 300
+            elif e.code in (404, 410):
+                # endpoint dead / model retired → 1h cooldown
+                _provider_cooldown[name] = now_ts + 3600
             last_err = f"{name}: HTTP {e.code}"
             continue
         except (urllib.error.URLError, KeyError, TimeoutError,
                 json.JSONDecodeError) as e:
-            last_err = f"{name}: {e}"
+            last_err = f"{name}: {type(e).__name__}: {str(e)[:80]}"
             continue
 
+    # Gemini fallback chain — try newest first, fall through to older.
+    # Each Gemini model has its own quota bucket on the free tier.
     gkey = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if gkey:
-        url = ("https://generativelanguage.googleapis.com/v1beta/models/"
-               f"gemini-2.0-flash:generateContent?key={gkey}")
-        sys_text = next((m["content"] for m in messages if m["role"] == "system"), "")
-        user_text = next((m["content"] for m in messages if m["role"] == "user"), "")
-        body = json.dumps({
-            "contents": [{"parts": [{"text": (sys_text + "\n\n" + user_text)[:8000]}]}],
-            "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.4},
-        }).encode()
-        req = urllib.request.Request(url, data=body, headers={
-            "Content-Type": "application/json", "User-Agent": UA_BROWSER})
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                d = json.loads(r.read())
-            return d["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception as e:
-            last_err = f"Gemini: {e} (after {last_err})"
+        # Build content list preserving full message history (was losing
+        # context by only taking system + last user). Gemini accepts
+        # role=user/model in `contents` array; system goes to systemInstruction.
+        sys_text = next(
+            (m["content"] for m in messages if m["role"] == "system"), "",
+        )
+        gem_contents = []
+        for m in messages:
+            if m["role"] == "system":
+                continue
+            gem_contents.append({
+                "role": "model" if m["role"] == "assistant" else "user",
+                "parts": [{"text": m["content"][:8000]}],
+            })
+        gem_payload = {
+            "contents": gem_contents,
+            "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.7},
+        }
+        if sys_text:
+            gem_payload["systemInstruction"] = {"parts": [{"text": sys_text}]}
+
+        for gmodel in (
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-lite",
+            "gemini-1.5-flash-latest",
+            "gemini-1.5-flash-8b-latest",
+        ):
+            cooldown_key = f"Gemini/{gmodel}"
+            if _provider_cooldown.get(cooldown_key, 0) > now_ts:
+                continue
+            url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+                   f"{gmodel}:generateContent?key={gkey}")
+            req = urllib.request.Request(
+                url, data=json.dumps(gem_payload).encode(),
+                headers={"Content-Type": "application/json",
+                         "User-Agent": UA_BROWSER},
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as r:
+                    d = json.loads(r.read())
+                txt = d["candidates"][0]["content"]["parts"][0]["text"]
+                if txt and txt.strip():
+                    log.info(f"LLM ok via Gemini/{gmodel}")
+                    return txt
+            except urllib.error.HTTPError as e:
+                if e.code == 429:
+                    _provider_cooldown[cooldown_key] = now_ts + 300
+                last_err = f"Gemini/{gmodel}: HTTP {e.code} (after {last_err})"
+                continue
+            except Exception as e:
+                last_err = f"Gemini/{gmodel}: {type(e).__name__} (after {last_err})"
+                continue
 
     raise RuntimeError(f"all LLM providers failed; last={last_err}")
 
