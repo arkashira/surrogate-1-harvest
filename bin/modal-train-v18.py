@@ -124,6 +124,13 @@ def train(
     run_grpo: bool = False,                      # post-SFT GRPO RL pass
     v18_ref: str = "main",
     hub_model_id: str | None = None,
+    # 2026-05-03 audit: attempt 6 burned 12h+$47 stuck on FineWeb-Edu HF
+    # rate-limits in Phase -1 V14 ingest. Zero pre-train wasn't unlocked
+    # so the H100 idled. take_public=False zeros all external TAKE_* knobs
+    # and trains exclusively on axentx/* data (already-prepared 2.7T-token
+    # corpus + 9 axentx knowledge datasets). No external HF fetch = no
+    # rate-limit risk = training enters SFT in minutes, not hours.
+    take_public: bool = True,
 ):
     """Pull v18 script from GitHub, set env, run, push adapter."""
     import sys
@@ -170,6 +177,34 @@ def train(
     }
     if hub_model_id:
         env["HUB_MODEL_ID"] = hub_model_id
+
+    # When take_public=False: zero out every external HF dataset knob in
+    # the v18 script. Keeps only axentx/* (the pre-prepared 2.7T-token
+    # corpus + 9 knowledge datasets the user spent 10+ days building).
+    # External-public knobs identified by inventory of v18 mission script
+    # @ 2026-05-03 — anything not under axentx/* author.
+    if not take_public:
+        for k in (
+            # FineWeb-Edu — the 12h-stuck culprit
+            "TAKE_FW_EDU", "TAKE_FW_EDU2",
+            # Tool/agent/code corpora
+            "TAKE_TOOLACE", "TAKE_MULTIIAC", "TAKE_XLAM",
+            "TAKE_ITBENCH", "TAKE_CODEFB",
+            "TAKE_SWESMITH", "TAKE_R2EGYM", "TAKE_HERMESFC",
+            "TAKE_HALUEVAL", "TAKE_ORCA_AGENT", "TAKE_ADP",
+            "TAKE_CAMEL", "TAKE_MULTIVERSE", "TAKE_MAGPIE_PRO",
+            "MAGPIE_TAKE", "TAKE_GLAIVE",
+            # Persona/role/conversation corpora
+            "TAKE_PERSONAHUB", "TAKE_TULU3IF", "TAKE_ROLEBENCH",
+            "TAKE_WILDCHAT", "TAKE_OASST", "TAKE_BITEXT", "TAKE_SALES",
+            # Code-specific external
+            "TAKE_CODERFORGE", "TAKE_SWERB", "TAKE_SWEDEV",
+            "TAKE_OCR2", "TAKE_SWEGYM_OH", "TAKE_MSWERL",
+            "TAKE_R2E_VERIF",
+        ):
+            env[k] = "0"
+        env["TAKE_PUBLIC"] = "0"  # signal flag for v18 if it checks
+        print("  ▸ take_public=False — zeroed all external HF dataset knobs")
 
     for k, v in env.items():
         os.environ[k] = v
@@ -227,6 +262,7 @@ def main(
     run_grpo: bool = False,
     v18_ref: str = "main",
     hub_model_id: str | None = None,
+    take_public: bool = True,
 ):
     """Local entrypoint — `modal run bin/modal-train-v18.py [--flags]`.
 
@@ -239,7 +275,7 @@ def main(
               f"decorator above and re-deploy. Modal doesn't support runtime "
               f"GPU swapping.")
 
-    print(f"▸ kicking off train.remote() on Modal…")
+    print(f"▸ kicking off train.remote() on Modal…  take_public={take_public}")
     result = train.remote(
         base_model=base_model,
         max_samples=max_samples,
@@ -253,6 +289,7 @@ def main(
         run_grpo=run_grpo,
         v18_ref=v18_ref,
         hub_model_id=hub_model_id,
+        take_public=take_public,
     )
     print(f"\n=== RESULT ===")
     for k, v in result.items():
