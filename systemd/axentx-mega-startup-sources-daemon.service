@@ -1,0 +1,23 @@
+[Unit]
+Description=axentx mega-startup-sources
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=AXENTX_ROOT=/opt/axentx
+Environment=MEGA_POLL_SEC=5400
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-mega-startup-sources-daemon.py
+Restart=always
+RestartSec=120
+MemoryMax=512M
+TasksMax=8
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
