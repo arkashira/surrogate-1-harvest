@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
-# Codebase indexer — scans ~/develope/ projects + extracts metadata
-# Writes one markdown per project to AI-Hub/knowledge/projects/
-# Metadata only (no code content): language, deps, scripts, README, recent commits, structure
-# Schedule: weekly via launchd
+# Codebase indexer — scans axentx + AI-Hub projects, NEVER ~/develope.
+# Writes one markdown per project to AI-Hub/knowledge/projects/.
+# Metadata only (no code content): language, deps, scripts, README, recent commits, structure.
+#
+# PRIVACY (2026-05-03): default SRC was ~/develope which contains
+# private client work (Thinkbit Excise/Wine/Car/MFA/RD, etc). Default
+# changed to ~/axentx. To re-include external repos, pass an explicit
+# arg AFTER confirming each is OK to ingest. Never pass ~/develope.
 set -e
 
-SRC="${1:-$HOME/develope}"
+SRC="${1:-$HOME/axentx}"
+# Refuse to run against ~/develope even if explicitly passed
+case "$(realpath "$SRC" 2>/dev/null || echo "$SRC")" in
+    "$HOME/develope"*|"/Users/Ashira/develope"*)
+        echo "ERROR: ~/develope/ is private client work, never index it." >&2
+        exit 2 ;;
+esac
 DEST="$HOME/Documents/Obsidian Vault/AI-Hub/knowledge/projects"
 export PATH=/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin:$PATH
 PY=~/.claude/venv/bin/python

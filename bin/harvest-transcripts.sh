@@ -43,6 +43,14 @@ new_seen = set(seen)
 
 for proj_dir in projects.iterdir():
     if not proj_dir.is_dir(): continue
+    # PRIVACY: Skip Claude Code session logs from ~/develope/* working dirs.
+    # Those sessions include Read tool calls of client source code +
+    # plaintext credentials in command history. Audit @ 2026-05-03 found
+    # 11 claude-*.jsonl harvest files with 80,659 develope hits + RDS
+    # password leak. Never harvest develope sessions.
+    name = proj_dir.name
+    if 'develope' in name.lower():
+        continue
     for jsonl in proj_dir.glob('*.jsonl'):
         try: mtime = datetime.fromtimestamp(jsonl.stat().st_mtime, tz=timezone.utc)
         except: continue

@@ -38,8 +38,31 @@ except: seen = set()
 def h(text):
     return hashlib.sha1((text or '')[:200].encode()).hexdigest()[:16]
 
+# PRIVACY filter — drop any pair whose instruction or response references
+# ~/develope/ paths or known client identifiers / RDS endpoints / known
+# leaked credential patterns. Audit @ 2026-05-03 found 3 hits in
+# scraped-2026-04-23.jsonl that came from workspace-map.md before
+# redaction. This filter is the last gate before ingestion.
+_DEVELOPE_PAT = re.compile(
+    r"/Users/Ashira/develope|"
+    r"~/develope|"
+    r"develope/(?:Excise|Wine|Car|MFA|RD|nginx|Winmed|sherlock|"
+    r"thinkbit-devops|hermes-toolbelt|surrogate-1-train|QA|AI/tb-)|"
+    r"cj86ma6gsgzd|"      # known thinkbit RDS host suffix
+    r"gpLu6ZbpINepfzh7GM",  # known leaked RDS password (rotate!)
+    re.IGNORECASE,
+)
+
+
+def _is_private(*texts):
+    return any(_DEVELOPE_PAT.search(t or "") for t in texts)
+
+
 def write_pair(instr, resp, source, tags=None, extra=None):
-    """Write one training pair if not seen; return 1 if written, 0 if skipped."""
+    """Write one training pair if not seen; return 1 if written, 0 if skipped.
+    Drops pairs that contain ~/develope refs or known client credentials."""
+    if _is_private(instr, resp):
+        return 0
     hh = h(instr)
     if hh in seen: return 0
     seen.add(hh)
