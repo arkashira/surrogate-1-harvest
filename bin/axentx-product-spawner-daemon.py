@@ -161,33 +161,60 @@ def pick_slug(hypothesis: str, max_attempts: int = 4) -> str | None:
     return None
 
 
-def create_repo(slug: str, hypothesis: str) -> bool:
-    """Create the GitHub repo + clone it locally. Idempotent."""
+def _resolve_owner() -> str:
+    """The PAT might belong to a different user than AXENTX_GH_OWNER.
+    Resolve the authenticated user once at startup so repo-creation lands
+    where we can actually write. Verified 2026-05-03: PAT issued to
+    ashirapit cannot POST to /orgs/arkashira/repos (404, arkashira is a
+    user not org), nor /user/repos creates under arkashira (creates
+    under the PAT-owner = ashirapit). Existing repos at github.com/
+    arkashira/<x> are reachable via git protocol but 404 via API."""
+    code, payload = _gh_api("GET", "/user")
+    if code == 200 and payload.get("login"):
+        return payload["login"]
+    return GH_OWNER  # last-resort fallback
+
+
+_AUTH_OWNER = None
+
+
+def get_auth_owner() -> str:
+    global _AUTH_OWNER
+    if _AUTH_OWNER is None:
+        _AUTH_OWNER = _resolve_owner()
+        if _AUTH_OWNER != GH_OWNER:
+            log("spawner",
+                f"  ⓘ PAT-owner ({_AUTH_OWNER}) differs from "
+                f"AXENTX_GH_OWNER ({GH_OWNER}). New repos will land at "
+                f"github.com/{_AUTH_OWNER}/<slug>.")
+    return _AUTH_OWNER
+
+
+def create_repo(slug: str, hypothesis: str) -> str | None:
+    """Create the GitHub repo + clone it locally. Idempotent.
+    Returns the actual owner login on success, None on failure."""
     description = f"axentx product · {hypothesis[:200]}"
-    code, payload = _gh_api("POST", f"/orgs/{GH_OWNER}/repos", {
+    owner = get_auth_owner()
+
+    # Always go via /user/repos — POSTing to /orgs/<owner>/repos requires
+    # the authenticated user to be an org member with create-repo perms,
+    # which fails for user-typed accounts.
+    code, payload = _gh_api("POST", "/user/repos", {
         "name": slug, "description": description,
         "private": False, "auto_init": True,
-        "default_branch": "main",
-        "has_issues": True, "has_projects": False, "has_wiki": False,
     })
-    # Org endpoint may 404 if owner is a user account — fall back to user repo.
-    if code == 404:
-        code, payload = _gh_api("POST", "/user/repos", {
-            "name": slug, "description": description,
-            "private": False, "auto_init": True,
-        })
     if code not in (201, 422):  # 422 = already exists
         log("spawner",
             f"  ✗ gh repo create {slug} failed: HTTP {code} "
             f"{str(payload)[:160]}")
-        return False
+        return None
     if code == 422:
         log("spawner", f"  ↺ {slug} already on GitHub — cloning")
 
     repo_dir = PROJECTS_ROOT / slug
     if not repo_dir.exists():
-        clone_url = (f"https://{GH_OWNER}:{GH_TOKEN}@github.com/"
-                     f"{GH_OWNER}/{slug}.git")
+        clone_url = (f"https://{owner}:{GH_TOKEN}@github.com/"
+                     f"{owner}/{slug}.git")
         try:
             subprocess.run(
                 ["git", "clone", "--depth=1", clone_url, str(repo_dir)],
@@ -196,8 +223,8 @@ def create_repo(slug: str, hypothesis: str) -> bool:
         except subprocess.CalledProcessError as e:
             log("spawner",
                 f"  ✗ clone {slug} failed: {e.stderr.decode()[:160]}")
-            return False
-    return True
+            return None
+    return owner
 
 
 def do_one() -> bool:
@@ -233,27 +260,30 @@ def do_one() -> bool:
              "could not generate unique valid slug after retries")
         return True
 
-    if not create_repo(slug, hypothesis):
+    owner = create_repo(slug, hypothesis)
+    if owner is None:
         fail(item, src_path, "spawner", f"repo creation failed for {slug}")
         return True
 
+    repo_url = f"https://github.com/{owner}/{slug}"
     # Audit log
     with PRODUCTS_AUDIT.open("a") as f:
         f.write(json.dumps({
             "at": datetime.datetime.utcnow().isoformat() + "Z",
+            "owner": owner,
             "slug": slug,
             "hypothesis": hypothesis,
             "trace_id": item.get("trace_id"),
             "item_id": item.get("id"),
-            "url": f"https://github.com/{GH_OWNER}/{slug}",
+            "url": repo_url,
         }, ensure_ascii=False) + "\n")
 
     item["target_project"] = slug
     item["project"] = slug
-    log("spawner",
-        f"  ✓ spawned axentx/{slug} — https://github.com/{GH_OWNER}/{slug}")
+    item["repo_url"] = repo_url
+    log("spawner", f"  ✓ spawned {owner}/{slug} — {repo_url}")
     advance(item, src_path, "design", "spawner",
-            json.dumps({"slug": slug, "url": f"https://github.com/{GH_OWNER}/{slug}"}))
+            json.dumps({"slug": slug, "owner": owner, "url": repo_url}))
     return True
 
 
