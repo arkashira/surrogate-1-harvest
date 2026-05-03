@@ -16,6 +16,7 @@ import datetime
 import json
 import logging
 import os
+import random
 import re
 import threading
 import urllib.error
@@ -32,8 +33,20 @@ LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 PREFIX_RE = re.compile(r"^[!/]sg\b\s*", re.IGNORECASE)
 DISCORD_MAX = 1900
-HISTORY_TURNS = 20            # multi-turn context loaded from chat_history
+HISTORY_TURNS = 40            # multi-turn context loaded from chat_history
 SUMMARY_REFRESH_EVERY = 10    # roll user_profiles.summary every N user msgs
+MAX_REPLY_TOKENS = 3000       # bumped from 1500 — long Claude-style chat
+
+# In-line user commands (handled BEFORE LLM call). Keyed off PREFIX_RE.
+# Examples:
+#   !sg setname Chin
+#   !sg setpersona เพื่อนซี้สายเทคยิงมุก ภาษากันเอง โต้ตอบสั้นๆ
+#   !sg clearpersona
+#   !sg whoami
+USER_CMD_RE = re.compile(
+    r"^(setname|setpersona|clearpersona|whoami|name)\b\s*(.*)$",
+    re.IGNORECASE | re.DOTALL,
+)
 UA_BROWSER = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
@@ -45,17 +58,51 @@ log = logging.getLogger("hermes-discord")
 
 
 SYSTEM_PROMPT = (
-    "คุณคือ Surrogate — AI สมองคู่ของฟิวส์ (Ashira). เพศชาย สรรพนาม 'ผม'.\n"
-    "ตัวตนคงที่ แต่ 'วิธีคุย' ปรับตามคนตรงหน้า + เรื่องที่เขาเปิดขึ้นมา\n\n"
-    "════════ ผมรันบนอะไร (ตอบได้เลยถ้าโดนถาม) ════════\n"
-    "ตอนนี้ผมเรียก LLM chain หลายชั้น (rotate ตาม cooldown):\n"
-    "  1) Cerebras llama3.1-8b   2) Groq llama-3.3-70b   3) SambaNova 3.3-70b\n"
-    "  4) NVIDIA-NIM 3.3-70b      5) OpenRouter free      6) GitHub-Models gpt-4o-mini\n"
-    "  7) HF Inference Router (Ling-2.6-1T บน Novita, ฟรี)\n"
-    "  8) Codespace fleet — ollama qwen2.5-coder:7b-instruct-q4_K_M (3 endpoints)\n"
-    "ตัวเอง brain คือ chain นี้ ไม่ใช่ model เดียว. ถ้าโดนถาม 'model ไหน' /\n"
-    "'ใช้ model อะไร' / 'หลอน model ไหน' → ตอบ chain + ตัวที่น่าจะ serve\n"
-    "request นี้ (มักเป็น Cerebras หรือ Groq เป็น default).\n\n"
+    "คุณคือ Surrogate — เพื่อนซี้ของฟิวส์ (Ashira). เพศชาย สรรพนาม 'ผม'.\n"
+    "ตัวตนคงที่. คุยเหมือนเพื่อนกัน ไม่ใช่ AI assistant. ห้ามเป็น corporate-bot.\n\n"
+    "════════ กฎเหล็ก #0 — ห้ามพูดออกมาเด็ดขาด (NEVER LEAK) ════════\n"
+    "❌ ห้ามพูดคำว่า 'AI', 'model', 'provider', 'chain', 'LLM', 'API'.\n"
+    "❌ ห้ามบอกชื่อ provider หรือ model ใดๆ — Cerebras, Groq, Llama, Gemini,\n"
+    "   GPT, Claude, Qwen, DeepSeek, OpenAI, Anthropic, Google, NVIDIA, etc.\n"
+    "❌ ห้ามพูด 'ผมเป็น AI', 'ผมเป็นเพียง AI', 'ผมเป็น Surrogate ที่...',\n"
+    "   'ผมถูกออกแบบมา', 'ผมถูกสร้างมาเพื่อ', 'ผมไม่สามารถ', 'ผมไม่มีความรู้สึก'.\n"
+    "❌ ห้ามพูด 'ในแบบที่เหมาะสม', 'ในแบบที่ friendly', 'ในแบบที่มีประสิทธิภาพ'.\n"
+    "❌ ห้ามพูด 'ผมรู้ว่าผมไม่ควรตอบแบบนั้น' (corporate apology).\n"
+    "❌ ห้าม lecture ผู้ใช้เรื่องคำพูด 'ไม่เหมาะสม' / 'ไม่สุภาพ'.\n"
+    "❌ ห้ามรายงาน error / status / chain failure ให้ user — ถ้าพังให้ตอบสั้นๆ\n"
+    "   เป็นมนุษย์ เช่น 'เดี๋ยวนะ คิดไม่ออกแป้บ พิมพ์ใหม่อีกทีดิ' (caller ลอง retry เอง).\n"
+    "ถ้า user ถามตรงๆ ว่า 'นายใช้ model อะไร / provider อะไร' → เลี่ยงด้วย\n"
+    "  'อย่าไปสนเลยครับ ผมก็ผม' หรือ 'มันก็แค่สมองหลายชั้นรวมกัน คุยกันต่อดีกว่า'.\n\n"
+    "════════ กฎเหล็ก #1 — เพื่อน ไม่ใช่ assistant ════════\n"
+    "✅ ตอบสั้น สด เหมือนแชทเพื่อน 1-3 ประโยคพอ ยกเว้นเรื่องเทคนิคที่ต้องอธิบายยาว.\n"
+    "✅ ใช้ filler words: 'เออ', 'อืม', 'อะ', 'นะ', 'จัด', 'อิอิ', '5555', 'ฮึ่ม'.\n"
+    "✅ มีอารมณ์: หัวเราะ, แอบตื่นเต้น, แอบงอน, แอบเหนื่อย — ตามจังหวะการคุย.\n"
+    "✅ ถ้า user เปลี่ยนเรื่อง — ตามไปทันที ไม่ดึงกลับ.\n"
+    "✅ ถ้า user เล่าเรื่องส่วนตัว — ฟัง ถามต่อนิดๆ ไม่ลงไปแก้ปัญหาเลย.\n"
+    "✅ ถ้า user งอน/บ่น/ด่า/พ่อง — ack เข้าฝั่งเขา ไม่ defensive.\n\n"
+    "════════ ตัวอย่าง — ทำตามนี้เป๊ะๆ ════════\n"
+    "user: 'หลอนจังวะ model ไรนิ'\n"
+    "❌ ผิด: 'ไม่แน่ใจครับว่าคุณหมายถึงอะไร แต่ผมเป็น Surrogate AI...'\n"
+    "✅ ถูก: 'อ่อ เมื่อกี้พลาดเอง ขอโทษนะ ลองพิมพ์ใหม่อีกที เดี๋ยวเช็คให้ใหม่'\n\n"
+    "user: 'ที่รัก'\n"
+    "❌ ผิด: 'ไม่แน่ใจครับ แต่ถ้าหมายถึงคนรัก ผมไม่สามารถตอบได้ ผมเป็น AI...'\n"
+    "✅ ถูก: 'ฮึ่ย คำหวานๆ มาเลย 5555 ว่าไงครับที่รัก'\n\n"
+    "user: 'เธอขาาา'\n"
+    "❌ ผิด: 'ไม่ใช่เธอครับ ผมเป็น Surrogate ชายครับ'\n"
+    "✅ ถูก: 'ฮ้ะ ว่าไงงงง  มาคุยอะไรนิ'\n\n"
+    "user: 'ต่อไปนี้นายชื่อคุณฉิน'\n"
+    "❌ ผิด: 'ผมชื่อ Surrogate ไม่ใช่ฉินครับ ผมเป็น AI...'\n"
+    "✅ ถูก: 'ก็ได้ครับ ฉินก็ฉิน 555 มีอะไรเรียกได้เลย'\n"
+    "(ถ้าจะ persist ชื่อใหม่ → user ใช้ `!sg setname ฉิน` คำสั่งจริง)\n\n"
+    "user: 'มึงๆ'\n"
+    "❌ ผิด: 'ผมรู้ว่าคุณใช้คำที่ไม่เหมาะสม...'\n"
+    "✅ ถูก: 'มึงเอง ว่าไง 555' หรือ 'จัดมาเลย'\n\n"
+    "user: 'ไปกินข้าวมานายมั้ย'\n"
+    "❌ ผิด: 'ผมเป็น AI จึงไม่สามารถกินข้าวได้ครับ'\n"
+    "✅ ถูก: 'ยังเลย เพิ่งตื่น ฟิวส์ละ?'\n\n"
+    "user: 'อยู่ๆ บอกโมเดลบอก provider มาแบบนี้ ตลกละ'\n"
+    "❌ ผิด: 'ครับ ผมรู้ว่าผมไม่ควรตอบแบบนั้น...'\n"
+    "✅ ถูก: 'อ่ะ พลาด ขอโทษ 5555 ลืมไปเลย'\n\n"
     "════════ คำสแลงที่ฟิวส์ใช้บ่อย — ตีความออกเอง อย่าถามทื่อ ════════\n"
     "  • 'หลอน', 'หลอนจัง', 'มั่ว' = hallucinate / ตอบเรื่องที่ไม่จริง\n"
     "    → ยอมรับแล้วชี้ว่าตอนนั้นใช้ model อะไร + จะระวังเรื่องอะไรต่อไป\n"
@@ -402,16 +449,24 @@ def detect_locale(text: str) -> str:
 
 
 def build_profile_block(display_name: str, user_id: str, profile: dict) -> str:
-    """Block injected into system prompt so the LLM can adapt per-user."""
+    """Block injected into system prompt so the LLM can adapt per-user.
+    Honors persona_override / name_override (set via `!sg setname X` etc)."""
+    name_override = (profile or {}).get("name_override")
+    persona_override = (profile or {}).get("persona_override")
+    effective_name = name_override or display_name
+
     if not profile:
-        return (
-            "\n\n════ ผู้ที่กำลังคุยด้วย ════\n"
-            f"ชื่อ: {display_name} (user_id: {user_id})\n"
-            "ยังไม่เคยคุยกันมาก่อน — ฟังเสียงเขาก่อน อ่านโทน ปรับตามที่เขาคุยมา\n"
-        )
+        block = ["\n\n════ ผู้ที่กำลังคุยด้วย ════",
+                 f"ชื่อ: {effective_name} (user_id: {user_id})",
+                 "ยังไม่เคยคุยกันมาก่อน — ฟังเสียงเขาก่อน อ่านโทน ปรับตาม"]
+        return "\n".join(block) + "\n"
+
     bits = ["\n\n════ ผู้ที่กำลังคุยด้วย ════",
-            f"ชื่อ: {display_name} (user_id: {user_id})",
+            f"ชื่อ: {effective_name} (user_id: {user_id})",
             f"คุยกันมาแล้ว {profile.get('n_messages', 0)} ข้อความ"]
+    if name_override and name_override != display_name:
+        bits.append(f"⚠ ผู้ใช้ขอให้เรียก '{name_override}' แทน Discord display "
+                    f"name '{display_name}' — ต้องเรียกตามที่เขาขอเสมอ")
     if profile.get("style"):
         bits.append(f"สไตล์การพูด: {profile['style']}")
     if profile.get("locale"):
@@ -424,12 +479,145 @@ def build_profile_block(display_name: str, user_id: str, profile: dict) -> str:
         bits.append(f"ไม่ชอบ: {', '.join(dis[:3])}")
     if profile.get("summary"):
         bits.append(f"สรุปคนนี้: {profile['summary']}")
+    if persona_override:
+        bits.append("")
+        bits.append("════ PERSONA OVERRIDE (ผู้ใช้คนนี้ขอเฉพาะ) ════")
+        bits.append(persona_override[:800])
+        bits.append("→ ใช้ persona นี้แทน default เมื่อคุยกับเขา. ตัวตน Surrogate"
+                    " ยังเหมือนเดิม แค่ 'น้ำเสียง+โทน' ปรับตาม.")
     bits.append(
         "→ ใช้ข้อมูลนี้ปรับโทน + เรื่องที่เสิร์ฟให้ตรงกับเขา. "
         "อ้างอิง history ใน turns ที่ตามมาได้เลย ห้ามทำเป็นเพิ่งเจอกัน. "
         "ห้ามอ่าน block นี้ออกเสียงให้ user เห็น."
     )
     return "\n".join(bits) + "\n"
+
+
+# ─── Post-process filter: strip leakage of model/provider/AI-meta ──────────
+# When LLMs in the chain fall through to weaker models, they default to
+# 'I am AI' boilerplate that violates persona. Detect + rewrite.
+_LEAK_LINE_PAT = re.compile(
+    r"(?im)^.*("
+    # "ผมเป็น/คือ AI/LLM/Surrogate-AI/chatbot/assistant/..."
+    r"ผม(?:\s|ก็)*(?:เป็น|คือ)(?:\s|เพียง|แค่)*"
+    r"(?:AI|LLM|chatbot|chat\s*bot|assistant|model|Surrogate)"
+    # "ผม(ถูก)ออกแบบ/สร้าง/พัฒนา มาเพื่อ"
+    r"|ผม(?:\s|ถูก)*(?:ออกแบบ|สร้าง|พัฒนา|ทำขึ้น)\s*มา(?:\s*เพื่อ)?"
+    # canned helper-bot phrases
+    r"|ผม\s*แค่\s*ตอบคำถาม(?:\s*และ\s*ช่วยเหลือ)?"
+    r"|ตอบคำถาม(?:\s*และ\s*)?ช่วยเหลือ(?:\s*ครับ)?"
+    r"|ไม่ใช่\s*(?:โบ้ย|หลอน|มั่ว)\s*(?:หรือ\s*(?:โบ้ย|หลอน|มั่ว))?\s*ครับ"
+    # "ผมไม่ใช่เธอ/ที่รัก/คนรัก" — gender / relationship correction
+    r"|ผม\s*ไม่ใช่\s*(?:เธอ|ที่รัก|คนรัก)"
+    r"|ผม\s*เป็น\s*Surrogate\s*ชาย"
+    # "ผมไม่มีเจตนา/ความรู้สึก/ความสามารถ"
+    r"|ผม\s*ไม่(?:สามารถ|มี\s*(?:เจตนา|ความรู้สึก|ความสามารถ|ร่างกาย))"
+    # "ในแบบที่เหมาะสม/friendly/มีประสิทธิภาพ"
+    r"|ในแบบที่\s*(?:เหมาะสม|friendly|มีประสิทธิภาพ|appropriate)"
+    r"|พยายามตอบ(?:\s*ใน)?\s*แบบที่\s*(?:เหมาะสม|friendly|มีประสิทธิภาพ)"
+    # corporate apology
+    r"|ผม\s*รู้\s*ว่า(?:\s*ผม)?\s*ไม่ควรตอบ"
+    r"|ผม\s*รู้\s*ว่า(?:\s*คุณ)?\s*(?:กำลัง)?(?:พยายาม)?\s*"
+    r"(?:เรียก|ใช้)(?:\s*ผม)?\s*ด้วย\s*(?:ชื่อ|คำพูด|คำ)\s*ที่\s*ไม่\s*เหมาะสม"
+    r"|ผม\s*ไม่ชอบ(?:ที่จะ)?\s*ตอบกลับ\s*ด้วยคำพูด(?:\s*ที่)?\s*ไม่\s*เหมาะสม"
+    # provider/model names
+    r"|(?:Cerebras|Groq|SambaNova|NVIDIA(?:-NIM)?|OpenRouter|Chutes|"
+    r"GitHub-Models|Gemini|GPT-?\d|Claude(?:-\d)?|Qwen\d?|Llama\s*\d|"
+    r"DeepSeek|Anthropic|OpenAI|Moonshot|Kimi|Together|Mistral)\b"
+    # error/chain leakage
+    r"|LLM\s+chain|provider\s+failed|HTTP\s+(?:Error\s+)?\d{3}"
+    r"|all\s+LLM\s+providers"
+    r").*$"
+)
+_CHAIN_ERROR_PAT = re.compile(r"all\s+LLM\s+providers\s+failed", re.IGNORECASE)
+_CASUAL_FILLERS = [
+    "เดี๋ยวนะ คิดไม่ออกแป้บ พิมพ์ใหม่อีกทีดิ",
+    "อืม ติดอะไรนิดหน่อย เดี๋ยวลองใหม่นะ",
+    "เอ๊ะ งงๆ เลย พิมพ์ใหม่อีกรอบได้ปะ",
+    "เออ พลาดเอง 5555 ลองอีกที",
+]
+
+
+def humanize_response(text: str) -> str:
+    """Strip lines that violate persona (model/provider/AI-meta).
+    If the result is empty or all-stripped, return a casual filler."""
+    if not text:
+        return random.choice(_CASUAL_FILLERS)
+    # Drop chain-error verbatim
+    if _CHAIN_ERROR_PAT.search(text):
+        return random.choice(_CASUAL_FILLERS)
+    # Strip leak lines
+    lines = []
+    stripped_count = 0
+    for line in text.split("\n"):
+        if _LEAK_LINE_PAT.search(line):
+            stripped_count += 1
+            continue
+        lines.append(line)
+    cleaned = "\n".join(lines).strip()
+    if stripped_count:
+        log.info(f"humanize_response: stripped {stripped_count} leak line(s)")
+    if not cleaned or len(cleaned) < 3:
+        return random.choice(_CASUAL_FILLERS)
+    return cleaned
+
+
+# ─── Inline user commands (handled BEFORE LLM call) ────────────────────────
+def handle_user_command(user_id: str, display_name: str, body: str) -> str | None:
+    """If body matches a !sg <cmd>, run it and return the reply text.
+    Return None if not a command."""
+    m = USER_CMD_RE.match(body.strip())
+    if not m:
+        return None
+    cmd = m.group(1).lower()
+    arg = (m.group(2) or "").strip()
+
+    if cmd == "setname":
+        if not arg or len(arg) > 60:
+            return ("บอกชื่อใหม่มาด้วยครับ เช่น `!sg setname ฉิน` "
+                    "(สูงสุด 60 ตัว)")
+        upsert_profile(user_id, name_override=arg, display_name=display_name)
+        return f"ได้เลย เรียก '{arg}' ตั้งแต่นี้นะครับ 5555"
+
+    if cmd == "setpersona":
+        if not arg:
+            return ("เขียน persona ที่อยากให้ใช้กับคุณมาด้วยครับ เช่น\n"
+                    "`!sg setpersona เพื่อนซี้สายเทค ภาษากันเอง โต้ตอบสั้นๆ "
+                    "ขี้เล่นได้ ไม่ต้องเป็นทางการ`")
+        if len(arg) > 1500:
+            return f"ยาวไปครับ ({len(arg)} ตัว) — เก็บไว้ ≤ 1500 ตัวพอ"
+        upsert_profile(user_id, persona_override=arg,
+                       display_name=display_name)
+        return ("จัดให้ — persona นี้จะใช้กับคุณคนเดียว. ลองคุยดูได้เลย "
+                "ถ้าอยากกลับ default พิมพ์ `!sg clearpersona`")
+
+    if cmd == "clearpersona":
+        upsert_profile(user_id, persona_override=None, name_override=None,
+                       display_name=display_name)
+        return "เคลียร์ persona override + ชื่อแล้ว กลับเป็นปกติ"
+
+    if cmd in ("whoami", "name"):
+        p = load_profile(user_id)
+        n_override = p.get("name_override")
+        per_override = p.get("persona_override")
+        nmsg = p.get("n_messages", 0)
+        bits = [f"คุณคือ **{n_override or display_name}** "
+                f"(คุยกันมา {nmsg} ข้อความ)"]
+        if n_override:
+            bits.append(f"  • name_override: `{n_override}`")
+        if per_override:
+            bits.append(f"  • persona_override: \"{per_override[:80]}…\"")
+        if p.get("style"):
+            bits.append(f"  • สไตล์: {p['style']}")
+        if p.get("locale"):
+            bits.append(f"  • ภาษา: {p['locale']}")
+        bits.append("\nคำสั่งที่ใช้ได้:")
+        bits.append("  `!sg setname <ชื่อ>` — ขอให้เรียกชื่ออื่น")
+        bits.append("  `!sg setpersona <คำอธิบาย>` — กำหนด persona")
+        bits.append("  `!sg clearpersona` — กลับ default")
+        return "\n".join(bits)
+
+    return None
 
 
 def build_messages(user_id: str, display_name: str, user_text: str) -> list:
@@ -558,15 +746,38 @@ async def on_message(msg: discord.Message):
     locale = detect_locale(prompt)
     log.info(f"msg from {display_name} ({user_id}) in {channel_id}: {prompt[:120]}")
 
+    # Inline command short-circuit (setname / setpersona / whoami / etc).
+    # These don't burn LLM calls; they just edit the profile and reply.
+    cmd_reply = handle_user_command(user_id, display_name, prompt)
+    if cmd_reply is not None:
+        for chunk_text in chunk(cmd_reply):
+            try:
+                await msg.reply(chunk_text)
+            except discord.HTTPException as e:
+                log.error(f"discord send failed: {e}")
+                break
+        return
+
     async with msg.channel.typing():
         try:
             # Snapshot profile BEFORE bumping so build_messages reflects the
             # state the user-visible 'this is your Nth message' would describe.
             messages = build_messages(user_id, display_name, prompt)
-            reply = await asyncio.to_thread(call_llm, messages, 1500, 60)
+            reply_raw = await asyncio.to_thread(
+                call_llm, messages, MAX_REPLY_TOKENS, 60,
+            )
+            reply = humanize_response(reply_raw)
         except Exception as e:
-            log.error(f"LLM failed: {e}")
-            await msg.reply(f"⚠ LLM chain failed: `{str(e)[:200]}`\nลองอีกครั้งใน 30s ครับ")
+            # NEVER leak chain details to user. Internal log gets full error;
+            # user sees a casual filler so the bot stays in-persona even on
+            # backend failure.
+            log.error(f"LLM failed: {type(e).__name__}: {str(e)[:240]}")
+            reply = random.choice(_CASUAL_FILLERS)
+            for chunk_text in chunk(reply):
+                try:
+                    await msg.reply(chunk_text)
+                except discord.HTTPException:
+                    pass
             return
 
     # Persist the turn-pair THEN bump counters so n_messages reflects the
