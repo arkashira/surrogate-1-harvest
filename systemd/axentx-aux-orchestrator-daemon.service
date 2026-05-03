@@ -1,7 +1,6 @@
 [Unit]
-Description=axentx synthetic canary daemon (cursor service end-to-end probe)
+Description=axentx aux orchestrator — schedules the 6 maintenance scripts (decisions-to-pairs, harvest, scraped, enrich, push-hf, distill)
 After=network-online.target
-Wants=network-online.target
 
 [Service]
 Type=simple
@@ -10,11 +9,11 @@ WorkingDirectory=/opt/surrogate-1-harvest
 EnvironmentFile=/etc/surrogate-coordinator.env
 Environment=PYTHONUNBUFFERED=1
 Environment=REPO_ROOT=/opt/surrogate-1-harvest
-ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-canary-daemon.py
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-aux-orchestrator-daemon.py
 Restart=always
 RestartSec=30
-MemoryMax=64M
-TasksMax=4
+MemoryMax=256M
+TasksMax=8
 StandardOutput=journal
 StandardError=journal
 
