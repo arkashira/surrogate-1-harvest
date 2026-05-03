@@ -1,0 +1,23 @@
+[Unit]
+Description=axentx knowledge-ingest — siphons shared_kv/memory/knowledge → HF dataset for training
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=INGEST_POLL_SEC=600
+Environment=HF_INGEST_DATASET=axentx/shared-context-stream
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-knowledge-ingest-daemon.py
+Restart=always
+RestartSec=60
+MemoryMax=256M
+TasksMax=8
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
