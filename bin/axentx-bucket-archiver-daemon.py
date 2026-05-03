@@ -79,18 +79,46 @@ def _ensure_hf() -> "object | None":
     return api
 
 
+SAFE_MAX_BYTES = int(os.environ.get("ARCHIVER_SAFE_MAX_MB", "1000")) * 1_000_000
+
+
 def archive_file(api, path: Path) -> int:
-    """Compress + upload + delete. Returns bytes saved locally."""
+    """Compress + upload + delete. Returns bytes saved locally.
+
+    Uses gzip stream-write to a tempfile so we don't load the whole file
+    into RAM — daemon RSS stays under MemoryMax even on 1GB jsonls.
+    """
     try:
         sz = path.stat().st_size
     except Exception:
         return 0
-    try:
-        raw = path.read_bytes()
-    except Exception as e:
-        log("archiver", f"  read fail {path}: {type(e).__name__}")
+    if sz > SAFE_MAX_BYTES:
+        log("archiver",
+            f"  ⚠ skip {path.name}: {sz//1_000_000}MB > "
+            f"{SAFE_MAX_BYTES//1_000_000}MB safety cap "
+            f"(let janitor rotate-tail it)")
         return 0
-    body = gzip.compress(raw, compresslevel=6)
+    # Stream-compress: read in chunks, write gz to tempfile.
+    import tempfile
+    tmp = tempfile.NamedTemporaryFile(suffix=".gz", delete=False)
+    try:
+        with open(path, "rb") as f_in, gzip.GzipFile(
+            fileobj=tmp, mode="wb", compresslevel=6,
+        ) as gz:
+            while True:
+                chunk = f_in.read(4 * 1024 * 1024)  # 4MB chunks
+                if not chunk:
+                    break
+                gz.write(chunk)
+        tmp.close()
+        body_size = os.path.getsize(tmp.name)
+        with open(tmp.name, "rb") as fh:
+            body = fh.read()
+    except Exception as e:
+        log("archiver", f"  compress fail {path.name}: {type(e).__name__}")
+        os.unlink(tmp.name)
+        return 0
+    os.unlink(tmp.name)
     today = datetime.datetime.utcnow().strftime("%Y-%m-%d")
     remote = f"archive/{today}/{HOSTNAME}/{path.name}.gz"
     try:
@@ -110,11 +138,13 @@ def archive_file(api, path: Path) -> int:
         return 0
     log("archiver",
         f"  ✓ {path.name}: {sz//1_000_000}MB → "
-        f"hf:{HF_REPO}/{remote} ({len(body)//1_000_000}MB gz)")
+        f"hf:{HF_REPO}/{remote} ({body_size//1_000_000}MB gz)")
     try:
         path.unlink()
     except Exception:
         pass
+    # Free body asap
+    del body
     return sz
 
 

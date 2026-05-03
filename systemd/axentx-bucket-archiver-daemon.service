@@ -12,7 +12,7 @@ Environment=REPO_ROOT=/opt/surrogate-1-harvest
 ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-bucket-archiver-daemon.py
 Restart=always
 RestartSec=30
-MemoryMax=128M
+MemoryMax=512M
 TasksMax=4
 StandardOutput=journal
 StandardError=journal
