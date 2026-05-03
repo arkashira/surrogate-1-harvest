@@ -131,7 +131,10 @@ def new_spawned_products(cursor: dict) -> list[dict]:
 
 
 def recent_commits(cursor: dict, since_seconds: int = 600) -> list[dict]:
-    """pipeline_items where stage='done' and history contains commit ✓."""
+    """pipeline_items where stage='done' and history contains commit ✓.
+    Skips orphan items (project=None/null/empty) — those are chain
+    failures that reached commit-daemon and got marked 'done' without
+    actually shipping. Reporting them as 'Shipped' misleads."""
     cutoff = int(time.time()) - since_seconds
     rows = _sb("GET",
                f"pipeline_items?stage=eq.done&updated_at=gte.{cutoff}"
@@ -150,6 +153,10 @@ def recent_commits(cursor: dict, since_seconds: int = 600) -> list[dict]:
                 payload = json.loads(payload)
             except Exception:
                 continue
+        # Skip orphan items (project=None/null/empty/"None")
+        project = r.get("project") or payload.get("project") or ""
+        if not project or str(project).lower() in ("none", "null", ""):
+            continue
         # Only emit if last history entry was a successful commit
         hist = payload.get("history") or []
         if not hist:
@@ -160,7 +167,7 @@ def recent_commits(cursor: dict, since_seconds: int = 600) -> list[dict]:
             continue
         out.append({
             "id": r["id"],
-            "project": r.get("project") or payload.get("project"),
+            "project": project,
             "focus": payload.get("focus", ""),
             "history_tail": out_text[:200],
         })

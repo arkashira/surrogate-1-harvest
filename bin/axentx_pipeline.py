@@ -307,7 +307,25 @@ def call_llm(prompt: str, system: str = "", max_tokens: int = 1500,
             _cooldown("CF-AI-fastpath", 60)
 
     # OpenAI-compatible providers.
+    # CF AI Gateway listed FIRST — cached responses (5min TTL by default)
+    # for repeat queries massively reduce upstream calls. AI Gateway then
+    # round-robins to its configured upstreams (Workers AI, OpenAI, etc).
+    # Cooldown if the gateway itself fails — fall through to direct
+    # provider list. Token: CLOUDFLARE_API_TOKEN (or new hermess token).
+    cf_acct = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
+    cf_token = (os.environ.get("CLOUDFLARE_AI_GATEWAY_TOKEN")
+                or os.environ.get("CLOUDFLARE_API_TOKEN", ""))
+    cf_gw = os.environ.get("CF_AI_GATEWAY_NAME", "axentx-llm")
+    cf_url = (
+        f"https://gateway.ai.cloudflare.com/v1/{cf_acct}/{cf_gw}/"
+        f"workers-ai/v1/chat/completions"
+        if cf_acct else ""
+    )
+
     chains = [
+        # CF AI Gateway → Workers AI (cached @ gateway, free 10K req/day).
+        ("CF-Gateway-WAI", cf_url, cf_token,
+         "@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
         ("Groq",          "https://api.groq.com/openai/v1/chat/completions",
          os.environ.get("GROQ_API_KEY"), "llama-3.3-70b-versatile"),
         ("Cerebras",      "https://api.cerebras.ai/v1/chat/completions",
