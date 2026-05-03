@@ -1,0 +1,25 @@
+[Unit]
+Description=axentx plan-miner — picks pending .md plans from project repos and pushes to dev queue
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=AXENTX_ROOT=/opt/axentx
+Environment=PLAN_MINER_POLL_SEC=60
+Environment=DEV_QUEUE_TARGET=30
+Environment=PLAN_MINER_MAX_PER_CYCLE=20
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-plan-miner-daemon.py
+Restart=always
+RestartSec=120
+MemoryMax=192M
+TasksMax=4
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
