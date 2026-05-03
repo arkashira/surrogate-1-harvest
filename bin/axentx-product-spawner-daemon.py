@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+"""axentx product-spawner — turns NEW-PRODUCT verdicts into real GitHub
+repos so the rest of the chain can build something concrete.
+
+Why this daemon exists:
+
+  bd-daemon classifies each pain as EXTEND <existing> | NEW-PRODUCT | PASS.
+  Before this daemon, NEW-PRODUCT items were routed straight to design,
+  flowed through architect → business → marketing → ux → prd → dev →
+  review → qa → commit, then commit-daemon failed with
+    'FAILED: project repo missing: /opt/axentx/null'
+  and the item was marked done. Audit @ 2026-05-03 found 568 such items
+  silently dropped.
+
+  This daemon closes the gap: it claims spawn-queue items, picks a clean
+  product slug from the LLM's hypothesis sentence, creates the GitHub
+  repo via REST API, clones it locally, then advances the item to design
+  with target_project = <new-slug>. Architect/business/marketing/ux/prd
+  etc. now produce artifacts targeted at a real repo, and commit-daemon
+  has somewhere to push.
+
+Stage flow (this daemon's slot is **spawn**):
+  research → validator → bd → spawn → design → architect → business →
+    marketing → ux → prd → dev → review → qa → commit
+"""
+from __future__ import annotations
+
+import datetime
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from axentx_pipeline import (REPO_ROOT, log, call_llm, pick_oldest, advance,
+                             fail, daemon_loop)
+
+POLL_SEC = int(os.environ.get("SPAWNER_POLL_SEC", "30"))
+PROJECTS_ROOT = Path(os.environ.get("AXENTX_ROOT", "/opt/axentx"))
+GH_OWNER = os.environ.get("AXENTX_GH_OWNER", "arkashira")
+GH_TOKEN = (os.environ.get("GH_TOKEN")
+            or os.environ.get("GITHUB_TOKEN")
+            or os.environ.get("AXENTX_GH_PAT", ""))
+
+# Audit log of products created — append-only, used by anyone asking
+# "which products has the chain spawned and when?"
+PRODUCTS_AUDIT = REPO_ROOT / "state" / "swarm-shared" / "products-spawned.jsonl"
+PRODUCTS_AUDIT.parent.mkdir(parents=True, exist_ok=True)
+
+# Reserved names — never spawn these. Existing products + system reserves.
+RESERVED_NAMES = {
+    "costinel", "vanguard", "airship", "workio", "surrogate", "surrogate-1",
+    "surrogate-1-harvest", "surrogate-1-runner", "surrogate-1-state",
+    "axentx", "axiomops", "hermes", "arkship",
+    "main", "master", "head", "null", "none", "test", "demo", "tmp",
+}
+
+SLUG_SYSTEM = (
+    "You name new products. Given a product hypothesis sentence, output "
+    "exactly ONE clean product slug — no more, no less.\n\n"
+    "Rules (strict):\n"
+    "- 1 to 3 words, total length 4–24 chars\n"
+    "- lowercase kebab-case (hyphen-separated)\n"
+    "- ASCII letters and hyphens only — no digits, no symbols\n"
+    "- evocative + specific to the domain (e.g. 'gdpr-guard', 'cost-radar', "
+    "'tracewright', 'commit-mind')\n"
+    "- NEVER include the words: ai, gpt, smart, pro, hub, suite, platform, "
+    "service, app, tool, kit, manager, system\n"
+    "- NEVER reuse existing axentx product names: costinel, vanguard, "
+    "airship, workio, surrogate\n"
+    "- output the slug ONLY, on a single line, no explanation, no quotes"
+)
+
+
+def _gh_api(method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
+    if not GH_TOKEN:
+        return 0, {"error": "no GH_TOKEN configured"}
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(
+        f"https://api.github.com{path}",
+        method=method, data=data,
+        headers={
+            "Authorization": f"token {GH_TOKEN}",
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "axentx-product-spawner",
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status, json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        try:
+            payload = json.loads(e.read() or b"{}")
+        except Exception:
+            payload = {"error": str(e)}
+        return e.code, payload
+    except Exception as e:
+        return 0, {"error": f"{type(e).__name__}: {e}"}
+
+
+def _normalize_slug(raw: str) -> str | None:
+    """Sanitize LLM output into a valid product slug, or None if invalid."""
+    if not raw:
+        return None
+    s = raw.strip().lower()
+    # take first line, drop quotes/code-fences/bullets
+    s = s.splitlines()[0].strip().strip("`'\"-•* ")
+    # squash whitespace + non-allowed chars to hyphens
+    s = re.sub(r"[^a-z-]+", "-", s).strip("-")
+    s = re.sub(r"-{2,}", "-", s)
+    if not (4 <= len(s) <= 30):
+        return None
+    if s in RESERVED_NAMES:
+        return None
+    # must be 1-3 words
+    parts = s.split("-")
+    if not (1 <= len(parts) <= 3):
+        return None
+    if any(len(p) < 2 for p in parts):
+        return None
+    return s
+
+
+def _name_taken(slug: str) -> bool:
+    """Already exists locally OR on GitHub?"""
+    if (PROJECTS_ROOT / slug).exists():
+        return True
+    code, _ = _gh_api("GET", f"/repos/{GH_OWNER}/{slug}")
+    return code == 200
+
+
+def pick_slug(hypothesis: str, max_attempts: int = 4) -> str | None:
+    """Ask the LLM for a slug, retry with feedback if invalid/taken."""
+    used: list[str] = []
+    for attempt in range(max_attempts):
+        prompt = (
+            f"Hypothesis: {hypothesis}\n\n"
+            + (f"Avoid (already used / invalid): {', '.join(used)}\n"
+               if used else "")
+            + "Output one slug only."
+        )
+        try:
+            raw = call_llm(prompt, system=SLUG_SYSTEM, max_tokens=20)
+        except Exception as e:
+            log("spawner", f"  LLM slug attempt {attempt + 1} failed: {e}")
+            continue
+        slug = _normalize_slug(raw)
+        if not slug:
+            log("spawner", f"  attempt {attempt + 1}: invalid '{raw[:40]}'")
+            continue
+        if _name_taken(slug):
+            log("spawner", f"  attempt {attempt + 1}: '{slug}' already taken")
+            used.append(slug)
+            continue
+        return slug
+    return None
+
+
+def create_repo(slug: str, hypothesis: str) -> bool:
+    """Create the GitHub repo + clone it locally. Idempotent."""
+    description = f"axentx product · {hypothesis[:200]}"
+    code, payload = _gh_api("POST", f"/orgs/{GH_OWNER}/repos", {
+        "name": slug, "description": description,
+        "private": False, "auto_init": True,
+        "default_branch": "main",
+        "has_issues": True, "has_projects": False, "has_wiki": False,
+    })
+    # Org endpoint may 404 if owner is a user account — fall back to user repo.
+    if code == 404:
+        code, payload = _gh_api("POST", "/user/repos", {
+            "name": slug, "description": description,
+            "private": False, "auto_init": True,
+        })
+    if code not in (201, 422):  # 422 = already exists
+        log("spawner",
+            f"  ✗ gh repo create {slug} failed: HTTP {code} "
+            f"{str(payload)[:160]}")
+        return False
+    if code == 422:
+        log("spawner", f"  ↺ {slug} already on GitHub — cloning")
+
+    repo_dir = PROJECTS_ROOT / slug
+    if not repo_dir.exists():
+        clone_url = (f"https://{GH_OWNER}:{GH_TOKEN}@github.com/"
+                     f"{GH_OWNER}/{slug}.git")
+        try:
+            subprocess.run(
+                ["git", "clone", "--depth=1", clone_url, str(repo_dir)],
+                check=True, capture_output=True, timeout=60,
+            )
+        except subprocess.CalledProcessError as e:
+            log("spawner",
+                f"  ✗ clone {slug} failed: {e.stderr.decode()[:160]}")
+            return False
+    return True
+
+
+def do_one() -> bool:
+    picked = pick_oldest("spawn")
+    if not picked:
+        return False
+    src_path, item = picked
+    bd = item.get("bd_verdict") or {}
+    verdict = (bd.get("verdict") or "").upper()
+
+    if verdict != "NEW-PRODUCT":
+        # Defensive: not for us. Pass through to design unchanged.
+        log("spawner",
+            f"  ⤷ {item['id'][:32]} verdict={verdict!r}, not NEW-PRODUCT — "
+            "forwarding to design unchanged")
+        advance(item, src_path, "design", "spawner",
+                f"forward (verdict={verdict})")
+        return True
+
+    hypothesis = (bd.get("new_product_one_liner")
+                  or item.get("current", {}).get("text", "")
+                  or "")[:300]
+    if not hypothesis.strip():
+        fail(item, src_path, "spawner", "no new_product_one_liner")
+        return True
+
+    log("spawner",
+        f"▸ {item['id'][:32]}  hypothesis: {hypothesis[:60]}")
+
+    slug = pick_slug(hypothesis)
+    if not slug:
+        fail(item, src_path, "spawner",
+             "could not generate unique valid slug after retries")
+        return True
+
+    if not create_repo(slug, hypothesis):
+        fail(item, src_path, "spawner", f"repo creation failed for {slug}")
+        return True
+
+    # Audit log
+    with PRODUCTS_AUDIT.open("a") as f:
+        f.write(json.dumps({
+            "at": datetime.datetime.utcnow().isoformat() + "Z",
+            "slug": slug,
+            "hypothesis": hypothesis,
+            "trace_id": item.get("trace_id"),
+            "item_id": item.get("id"),
+            "url": f"https://github.com/{GH_OWNER}/{slug}",
+        }, ensure_ascii=False) + "\n")
+
+    item["target_project"] = slug
+    item["project"] = slug
+    log("spawner",
+        f"  ✓ spawned axentx/{slug} — https://github.com/{GH_OWNER}/{slug}")
+    advance(item, src_path, "design", "spawner",
+            json.dumps({"slug": slug, "url": f"https://github.com/{GH_OWNER}/{slug}"}))
+    return True
+
+
+if __name__ == "__main__":
+    if not GH_TOKEN:
+        log("spawner",
+            "FATAL: GH_TOKEN/GITHUB_TOKEN/AXENTX_GH_PAT not set in env. "
+            "Spawner cannot create repos. Set in /etc/surrogate-coordinator.env.")
+        sys.exit(1)
+    daemon_loop("spawner", POLL_SEC, do_one)

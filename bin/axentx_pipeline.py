@@ -41,11 +41,18 @@ QUEUES = {
     "qa":       SHARED / "qa-queue",
     "commit":   SHARED / "commit-queue",
     "done":     SHARED / "done",
-    # New product-discovery pipeline:
-    # research → validator → bd → design → business → marketing → prd → dev
+    # Product-discovery pipeline:
+    # research → validator → bd → (spawn → design) | design → business →
+    #   marketing → prd → dev
+    # spawn = product-spawner-daemon — claims items where bd verdict is
+    # NEW-PRODUCT (target_project=null), creates GitHub repo + local
+    # clone, then advances to design with the real product slug. Without
+    # this stage, NEW-PRODUCT items end up at commit-daemon which fails
+    # with "project repo missing: /opt/axentx/null" and silently dies.
     "research":  SHARED / "research-queue",
     "validator": SHARED / "validator-queue",
     "bd":        SHARED / "bd-queue",
+    "spawn":     SHARED / "spawn-queue",
     "design":    SHARED / "design-queue",
     "business":  SHARED / "business-queue",
     "marketing": SHARED / "marketing-queue",

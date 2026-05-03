@@ -152,11 +152,23 @@ def do_one_bd() -> bool:
         advance(item, src_path, "done", "bd",
                 f"BD-PASS: {verdict.get('rationale','')[:200]}")
         log("bd", f"  ↓ PASS — {verdict.get('rationale','')[:60]}")
-    elif v in ("EXTEND", "NEW-PRODUCT"):
-        # Forward to design-thinking validator
+    elif v == "EXTEND":
+        # Existing product → straight to design
         item["target_project"] = verdict.get("target_project")
         advance(item, src_path, "design", "bd", json.dumps(verdict))
-        log("bd", f"  ✓ {v} → {verdict.get('target_project','new')} → design-queue")
+        log("bd", f"  ✓ EXTEND → {verdict.get('target_project','?')} → design-queue")
+    elif v == "NEW-PRODUCT":
+        # Brand-new product hypothesis. Detour through spawn-queue so the
+        # product-spawner-daemon creates the GitHub repo + local clone
+        # FIRST (otherwise downstream stages cascade to commit-daemon
+        # with project=null → silent failure: 'project repo missing').
+        # Verified: 568 NEW-PRODUCT items had reached 'done' by 2026-05-03
+        # without spawning a single new repo.
+        item["target_project"] = None  # spawner fills this in
+        advance(item, src_path, "spawn", "bd", json.dumps(verdict))
+        log("bd",
+            f"  ✓ NEW-PRODUCT → spawn-queue: "
+            f"{verdict.get('new_product_one_liner','?')[:60]}")
     else:
         # Ambiguous — let design have a look
         advance(item, src_path, "design", "bd", out)

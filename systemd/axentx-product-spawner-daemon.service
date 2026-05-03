@@ -1,0 +1,24 @@
+[Unit]
+Description=axentx product-spawner — turns NEW-PRODUCT verdicts into real GitHub repos
+After=network-online.target hermes-scheduler-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=AXENTX_ROOT=/opt/axentx
+Environment=AXENTX_GH_OWNER=arkashira
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-product-spawner-daemon.py
+Restart=always
+RestartSec=20
+MemoryMax=128M
+TasksMax=8
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
