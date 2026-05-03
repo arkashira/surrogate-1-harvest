@@ -42,6 +42,22 @@ def do_one_commit() -> bool:
     # "fetch first" rejection we kept hitting when concurrent commit
     # cycles (or external pushes) advanced origin while our local was
     # behind. Pull rebases so our new commit lands cleanly on top.
+    #
+    # Pre-step: discard local mods to known-noisy auto-generated files.
+    # axentx-release-daemon writes .axentx-release-v0.1.0.md (release
+    # notes) without committing. CI auto-bumps the same file. The leftover
+    # local-modified state silently blocks `git rebase` with "cannot pull
+    # with rebase: You have unstaged changes" → push rejects → items
+    # advance to done WITHOUT being on origin = silent data loss.
+    try:
+        subprocess.run(
+            ["git", "-C", str(repo), "checkout", "--",
+             ".axentx-release-v0.1.0.md"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except Exception:
+        pass
+
     try:
         subprocess.run(
             ["git", "-C", str(repo), "fetch", "origin", "main"],
