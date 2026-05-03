@@ -165,7 +165,9 @@ def do_one_validation() -> bool:
             "confirmed": True, "confidence": 0.5,
             "rationale": "no pain_one_liner — pass-through",
         }
-        advance(item, src_path, "bd", "validator", "PASS-THROUGH (no pain_one_liner)")
+        # Route through market-research first so bd has TAM/SAM/SOM data
+        # to make a numerical NEW-PRODUCT vs EXTEND vs PASS call.
+        advance(item, src_path, "market-research", "validator", "PASS-THROUGH (no pain_one_liner)")
         return True
 
     log("validator", f"▸ {item['id'][:30]}  '{pain_text[:60]}'")
@@ -196,7 +198,9 @@ def do_one_validation() -> bool:
             "confirmed": True, "confidence": 0.3,
             "rationale": f"validator-fault: {str(e)[:80]}",
         }
-        advance(item, src_path, "bd", "validator",
+        # Route through market-research first so bd has TAM/SAM/SOM data
+        # to make a numerical NEW-PRODUCT vs EXTEND vs PASS call.
+        advance(item, src_path, "market-research", "validator",
                 f"FALLTHROUGH (llm-fault: {str(e)[:80]})")
         return True
     txt = out.strip()
@@ -213,7 +217,9 @@ def do_one_validation() -> bool:
             "confirmed": True, "confidence": 0.3,
             "rationale": f"parse-fault: {str(e)[:80]}",
         }
-        advance(item, src_path, "bd", "validator",
+        # Route through market-research first so bd has TAM/SAM/SOM data
+        # to make a numerical NEW-PRODUCT vs EXTEND vs PASS call.
+        advance(item, src_path, "market-research", "validator",
                 f"FALLTHROUGH (parse-fault: {str(e)[:80]})")
         return True
 
