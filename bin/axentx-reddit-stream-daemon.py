@@ -127,14 +127,16 @@ def _sb(method: str, path: str, body=None, headers_extra=None):
 
 
 def already_seen(fp: str) -> bool:
-    """Use existing RPC seen_check_bulk (the rest of the pipeline coordinates
-    via 'pain-url' kind, so we share the namespace)."""
+    """seen_check_bulk RPC returns rows for fps that ARE seen (contract:
+    `[{"fp": "..."}]` for found, `[]` for not found). The earlier wrong
+    check `r[0].get("seen", False)` always returned False because the
+    RPC never emits a 'seen' field — it just returns the matching rows.
+    This was the root cause of GitHub stream re-emitting same titles 3+
+    times in 15min."""
     r = _sb("POST", "rpc/seen_check_bulk", {
         "p_kind": "pain-url", "p_fps": [fp],
     })
-    if isinstance(r, list) and r and isinstance(r[0], dict):
-        return bool(r[0].get("seen", False))
-    return False
+    return isinstance(r, list) and len(r) > 0
 
 
 def stamp_seen(fp: str, host: str = "reddit-stream") -> None:
@@ -299,7 +301,14 @@ def post_to_pipeline(post: dict, sub: str) -> bool:
         }],
         "current": {"text": f"[reddit/{sub}] {title}\n\n{body[:1500]}"},
     }
-    write_item(item, "research")
+    # Write directly to validator-queue (skip research stage). Stream
+    # daemons already heuristic-matched pain signal via PAIN_RE so the
+    # validator's job (cross-source confirm + LLM verdict) starts
+    # immediately. Earlier wrote to 'research' but no daemon consumes
+    # research-queue (it's an SOURCE stage, not a CONSUMER stage), so
+    # 2747 items piled up unprocessed. Verified 2026-05-03.
+    item["stage"] = "validator"
+    write_item(item, "validator")
     stamp_seen(fp)
     log("reddit-stream",
         f"  ✓ pain (score={score} age={age_days:.1f}d sig={signal!r}): "

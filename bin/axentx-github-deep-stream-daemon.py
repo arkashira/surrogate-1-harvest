@@ -108,15 +108,15 @@ def _sb(method: str, path: str, body=None, headers_extra=None):
 
 
 def already_seen(fp: str) -> bool:
-    """Use existing RPC seen_check_bulk — share 'pain-url' kind with the
-    rest of the pipeline so the chain doesn't re-process URLs harvested
-    from any source."""
+    """seen_check_bulk RPC returns rows for fps that ARE seen
+    (contract: `[{"fp": "..."}]` for found, `[]` for not found).
+    Earlier `r[0].get("seen", False)` was always False because RPC
+    never emits a 'seen' field — same root cause as Reddit stream
+    duplicate emit."""
     r = _sb("POST", "rpc/seen_check_bulk", {
         "p_kind": "pain-url", "p_fps": [fp],
     })
-    if isinstance(r, list) and r and isinstance(r[0], dict):
-        return bool(r[0].get("seen", False))
-    return False
+    return isinstance(r, list) and len(r) > 0
 
 
 def stamp_seen(fp: str) -> None:
@@ -231,7 +231,10 @@ def emit_issue_as_pain(item: dict) -> bool:
         }],
         "current": {"text": f"[github-issue] {title}\n\n{body[:2000]}"},
     }
-    write_item(pipeline_item, "research")
+    # Write to validator-queue directly (research is a source stage
+    # with no consumer; was piling up 2747 items unprocessed).
+    pipeline_item["stage"] = "validator"
+    write_item(pipeline_item, "validator")
     stamp_seen(fp)
     log("gh-deep",
         f"  ✓ pain (👍{upvotes} 💬{comments} {state}): {title[:70]}")
