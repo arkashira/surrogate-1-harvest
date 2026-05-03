@@ -328,8 +328,16 @@ def call_llm(prompt: str, system: str = "", max_tokens: int = 1500,
          "@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
         ("Groq",          "https://api.groq.com/openai/v1/chat/completions",
          os.environ.get("GROQ_API_KEY"), "llama-3.3-70b-versatile"),
+        # Cerebras 2026-05-03: llama-3.3-70b removed, qwen-3-235b-a22b
+        # is the new biggest+fastest model on free tier. gpt-oss-120b
+        # added as separate entry for parallel rate-limit bucket.
         ("Cerebras",      "https://api.cerebras.ai/v1/chat/completions",
-         os.environ.get("CEREBRAS_API_KEY"), "llama-3.3-70b"),
+         os.environ.get("CEREBRAS_API_KEY"),
+         "qwen-3-235b-a22b-instruct-2507"),
+        ("Cerebras-GPT",  "https://api.cerebras.ai/v1/chat/completions",
+         os.environ.get("CEREBRAS_API_KEY"), "gpt-oss-120b"),
+        ("Cerebras-Llama", "https://api.cerebras.ai/v1/chat/completions",
+         os.environ.get("CEREBRAS_API_KEY"), "llama3.1-8b"),
         ("SambaNova",     "https://api.sambanova.ai/v1/chat/completions",
          os.environ.get("SAMBANOVA_API_KEY"), "Meta-Llama-3.3-70B-Instruct"),
         ("NVIDIA-NIM",    "https://integrate.api.nvidia.com/v1/chat/completions",
