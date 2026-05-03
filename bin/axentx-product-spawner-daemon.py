@@ -282,7 +282,11 @@ def do_one() -> bool:
     item["project"] = slug
     item["repo_url"] = repo_url
     log("spawner", f"  ✓ spawned {owner}/{slug} — {repo_url}")
-    advance(item, src_path, "design", "spawner",
+    # Route through business-synthesis BEFORE design so the new repo
+    # gets BMC + marketing + tech spec + customer journey + dataflow +
+    # user stories committed first. design-thinking + architect then
+    # build on that foundation.
+    advance(item, src_path, "business-synthesis", "spawner",
             json.dumps({"slug": slug, "owner": owner, "url": repo_url}))
     return True
 

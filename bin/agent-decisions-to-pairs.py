@@ -191,8 +191,12 @@ def extract_pairs(item: dict) -> list[dict]:
     # Each stage emits one decision per item. Capture them all so v2
     # learns the entire discovery loop end-to-end (not just dev→commit).
     # Ref: docs/surrogate-1-v2-roadmap.md — capabilities #3-9.
-    discovery_stages = ("research", "validator", "bd", "design",
-                        "business", "marketing", "prd")
+    # Expanded 2026-05-03 from 7 → 10 stages to capture the full
+    # autonomous-product-synthesis loop including the new market-research
+    # + spawn + business-synthesis stages added on 2026-05-03.
+    discovery_stages = ("research", "validator", "market-research",
+                        "bd", "spawn", "business-synthesis",
+                        "design", "business", "marketing", "prd")
     stage_prompts = {
         "research": (
             "You are mining a post for pain signal. Output strict JSON: "
@@ -201,6 +205,20 @@ def extract_pairs(item: dict) -> list[dict]:
         "validator": (
             "Validate whether this pain is shared by multiple users with "
             "evidence from neighbors. Output strict JSON validation verdict."
+        ),
+        "market-research": (
+            "Estimate TAM/SAM/SOM (USD) + Thai market in THB + demand "
+            "signal + 3-5 competitors + confidence. Output strict JSON."
+        ),
+        "spawn": (
+            "Pick a 1-3 word kebab-case product slug from the hypothesis. "
+            "Validate uniqueness vs existing products. Output {slug, "
+            "owner, repo_url}."
+        ),
+        "business-synthesis": (
+            "Generate the full business pack: BMC (9 blocks), marketing "
+            "plan, customer journey, dataflow, user stories, tech spec, "
+            "break-even, partner targets. Output as multi-section markdown."
         ),
         "bd": (
             "Triage this pain against the axentx product portfolio. Output "

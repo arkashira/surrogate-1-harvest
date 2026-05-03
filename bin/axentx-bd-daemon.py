@@ -160,14 +160,14 @@ def do_one_bd() -> bool:
     elif v == "NEW-PRODUCT":
         # Brand-new product hypothesis. Detour through spawn-queue so the
         # product-spawner-daemon creates the GitHub repo + local clone
-        # FIRST (otherwise downstream stages cascade to commit-daemon
-        # with project=null → silent failure: 'project repo missing').
-        # Verified: 568 NEW-PRODUCT items had reached 'done' by 2026-05-03
-        # without spawning a single new repo.
+        # FIRST. After spawn, business-synthesis attaches the full pack
+        # (BMC + marketing + tech spec + customer journey + dataflow +
+        # user stories + breakeven + partner targets) into the new repo
+        # before code starts being written.
         item["target_project"] = None  # spawner fills this in
         advance(item, src_path, "spawn", "bd", json.dumps(verdict))
         log("bd",
-            f"  ✓ NEW-PRODUCT → spawn-queue: "
+            f"  ✓ NEW-PRODUCT → spawn → business-synthesis → design: "
             f"{verdict.get('new_product_one_liner','?')[:60]}")
     else:
         # Ambiguous — let design have a look

@@ -49,14 +49,16 @@ QUEUES = {
     # clone, then advances to design with the real product slug. Without
     # this stage, NEW-PRODUCT items end up at commit-daemon which fails
     # with "project repo missing: /opt/axentx/null" and silently dies.
-    "research":  SHARED / "research-queue",
-    "validator": SHARED / "validator-queue",
-    "bd":        SHARED / "bd-queue",
-    "spawn":     SHARED / "spawn-queue",
-    "design":    SHARED / "design-queue",
-    "business":  SHARED / "business-queue",
-    "marketing": SHARED / "marketing-queue",
-    "prd":       SHARED / "prd-queue",
+    "research":          SHARED / "research-queue",
+    "validator":         SHARED / "validator-queue",
+    "market-research":   SHARED / "market-research-queue",
+    "bd":                SHARED / "bd-queue",
+    "spawn":             SHARED / "spawn-queue",
+    "business-synthesis": SHARED / "business-synthesis-queue",
+    "design":            SHARED / "design-queue",
+    "business":          SHARED / "business-queue",
+    "marketing":         SHARED / "marketing-queue",
+    "prd":               SHARED / "prd-queue",
 }
 LOG_DIR = REPO_ROOT / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
