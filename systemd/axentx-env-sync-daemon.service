@@ -1,0 +1,22 @@
+[Unit]
+Description=axentx env-sync — distributes /etc/surrogate-coordinator.env from shared_kv[env.canonical] to all hosts (Mac-independent)
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=ENV_SYNC_POLL_SEC=300
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-env-sync-daemon.py
+Restart=always
+RestartSec=120
+MemoryMax=128M
+TasksMax=4
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
