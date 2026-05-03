@@ -1,0 +1,22 @@
+[Unit]
+Description=axentx hf-rag-loader — pulls patterns from HF dataset → shared_knowledge (closed-loop bidir sync)
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=HF_RAG_LOADER_POLL_SEC=21600
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-hf-rag-loader-daemon.py
+Restart=always
+RestartSec=300
+MemoryMax=256M
+TasksMax=4
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
