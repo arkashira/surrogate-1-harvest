@@ -18,7 +18,7 @@ OOMPolicy=continue
 # Resource limits — coordinator has 1 GB RAM, keep daemons light
 MemoryMax=64M
 MemoryHigh=48M
-TasksMax=8
+TasksMax=32
 StandardOutput=journal
 StandardError=journal
 
