@@ -3,7 +3,7 @@ Description=axentx kamatera-terminator — kills Kamatera VM at promo day 28 (on
 
 [Service]
 Type=oneshot
-User=root
+User=ubuntu
 WorkingDirectory=/opt/surrogate-1-harvest
 EnvironmentFile=/etc/surrogate-coordinator.env
 Environment=PYTHONUNBUFFERED=1

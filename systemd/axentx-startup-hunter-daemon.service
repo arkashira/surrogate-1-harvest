@@ -14,7 +14,7 @@ ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin
 Restart=always
 RestartSec=300
 MemoryMax=256M
-TasksMax=4
+TasksMax=16
 StandardOutput=journal
 StandardError=journal
 

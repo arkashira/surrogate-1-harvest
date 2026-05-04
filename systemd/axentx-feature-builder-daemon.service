@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=root
+User=ubuntu
 WorkingDirectory=/opt/surrogate-1-harvest
 EnvironmentFile=/etc/surrogate-coordinator.env
 Environment=PYTHONUNBUFFERED=1
@@ -14,7 +14,7 @@ Environment=AXENTX_ROOT=/opt/axentx
 ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-feature-builder-daemon.py
 Restart=always
 RestartSec=20
-MemoryMax=256M
+MemoryMax=128M
 TasksMax=16
 StandardOutput=journal
 StandardError=journal

@@ -4,7 +4,7 @@ After=network-online.target
 
 [Service]
 Type=simple
-User=root
+User=ubuntu
 WorkingDirectory=/opt/surrogate-1-harvest
 EnvironmentFile=/etc/surrogate-coordinator.env
 Environment=PYTHONUNBUFFERED=1
@@ -13,7 +13,7 @@ ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin
 Restart=always
 RestartSec=30
 MemoryMax=512M
-TasksMax=4
+TasksMax=16
 StandardOutput=journal
 StandardError=journal
 

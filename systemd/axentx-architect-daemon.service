@@ -4,7 +4,7 @@ After=network-online.target hermes-scheduler-daemon.service
 Wants=network-online.target
 [Service]
 Type=simple
-User=root
+User=ubuntu
 WorkingDirectory=/opt/surrogate-1-harvest
 EnvironmentFile=/etc/surrogate-coordinator.env
 Environment=PYTHONUNBUFFERED=1
@@ -13,7 +13,7 @@ Environment=AXENTX_ROOT=/opt/axentx
 ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-architect-daemon.py
 Restart=always
 RestartSec=15
-MemoryMax=256M
+MemoryMax=128M
 TasksMax=8
 StandardOutput=journal
 StandardError=journal
