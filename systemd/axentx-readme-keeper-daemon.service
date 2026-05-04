@@ -1,0 +1,23 @@
+[Unit]
+Description=axentx readme-keeper — writes proper README.md (overview/stack/run/deploy) per project
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=AXENTX_ROOT=/opt/axentx
+Environment=README_KEEPER_POLL_SEC=300
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-readme-keeper-daemon.py
+Restart=always
+RestartSec=300
+MemoryMax=256M
+TasksMax=4
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
