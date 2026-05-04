@@ -1,0 +1,23 @@
+[Unit]
+Description=axentx stuck-detector — enforce 'no agent stuck' rule (auto-unstick + dead-letter)
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=STUCK_POLL_SEC=90
+Environment=SHARED_QUEUES=/opt/surrogate-1-harvest/state/swarm-shared
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-stuck-detector-daemon.py
+Restart=always
+RestartSec=60
+MemoryMax=192M
+TasksMax=32
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

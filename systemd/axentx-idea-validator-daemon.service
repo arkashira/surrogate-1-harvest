@@ -1,0 +1,24 @@
+[Unit]
+Description=axentx idea-validator — TAM/SAM/SOM gate before pitch (saves LLM tokens by killing weak ideas early)
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=VALIDATOR_POLL_SEC=120
+Environment=VALIDATOR_THRESHOLD=60
+Environment=SHARED_QUEUES=/opt/surrogate-1-harvest/state/swarm-shared
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-idea-validator-daemon.py
+Restart=always
+RestartSec=60
+MemoryMax=192M
+TasksMax=16
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
