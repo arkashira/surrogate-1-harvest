@@ -1,0 +1,21 @@
+[Unit]
+Description=axentx codespace keepalive — pings ollama LLM proxy during business hours
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/bin/bash /opt/surrogate-1-harvest/bin/axentx-codespace-keepalive.sh
+Restart=always
+RestartSec=30
+MemoryMax=64M
+TasksMax=8
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

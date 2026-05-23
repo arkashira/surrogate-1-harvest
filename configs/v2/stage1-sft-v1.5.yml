@@ -1,0 +1,150 @@
+# Surrogate-1 v1.5 — Stage 1 SFT (32B base + ALL techniques on Kaggle T4×2)
+#
+# This is the "demo every technique, Kaggle-feasible" configuration. Lives
+# between v1 (Qwen2.5-Coder-7B + minimal LoRA) and v2 (Qwen2.5-72B-Instruct
+# + Lightning H200 only). Goal: prove the full technique stack lifts
+# performance over base32B and v1, without waiting for Lightning AI access.
+#
+# Run:    axolotl train configs/v2/stage1-sft-v1.5.yml --deepspeed deepspeed-zero3.json
+# Hardware: Kaggle T4×2 16GB×2 = 32GB total via ZeRO-3 + CPU offload
+# ETA:    ~12-18 hr per epoch, 3 epochs ≈ 36-54 hr (split across 2 Kaggle weeks)
+# Budget: 30 hr/wk × 2 weeks free Kaggle = 60 GPU-hr → fits with margin
+#
+# Active techniques (full Round 1-12 stack):
+#   ✓ Round 1: LoRA r=32 + all-linear targets (q/k/v/o/gate/up/down)
+#   ✓ Round 2: DoRA decomposition (peft_use_dora — +5-10% over plain LoRA)
+#   ✓ Round 3: Liger kernel (30-40% memory reduction at no quality cost)
+#   ✓ Round 4: Flash Attention 2 (T4 doesn't have FA3)
+#   ✓ Round 5: Sample packing (4-8× throughput)
+#   ✓ Round 6: NEFTune noise alpha=5 (small instruct lift)
+#   ✓ Round 7: YaRN ×4 (32K base → 128K serve, train at 4K for Kaggle)
+#   ✓ Round 8: Gradient checkpointing (use_reentrant=false)
+#   ✓ Round 9: 8-bit AdamW (paged) — half optimizer mem
+#   ✓ Round 10: BF16 mixed precision
+#   ✓ Round 11: Cosine LR + 3% warmup
+#   ✓ Round 12: Datasets — 5 sharded repos (~921M raw → ~5-50M post-dedup)
+#
+# Post-SFT chain (separate config files in this directory):
+#   stage1-sdft.yml    — SDFT self-distillation (anti-forgetting)
+#   stage15-toolsft.yml — Hermes function-calling
+#   stage16-agent.yml  — SWE-agent trajectories
+#   stage2-codedpo.yml — Code DPO from Vezora preference pairs
+#   stage25-tooldpo.yml — Tool-use DPO
+#   stage3-dapo.yml    — DAPO RL (Round 12 Tier 1)
+
+base_model: Qwen/Qwen2.5-Coder-32B-Instruct
+# v1 base was Qwen2.5-Coder-7B (8B params). v1.5 = 32B (4× params, much
+# stronger code knowledge). v2 will be 72B once Lightning H200 is wired.
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
+trust_remote_code: true
+
+# 4-bit quantization (NF4) — fits 32B on T4×2 via ZeRO-3 partitioning
+load_in_4bit: true
+strict: false
+
+# LoRA r=32 (smaller than v2's 64 for memory; still 2× v1's 16)
+adapter: lora
+lora_r: 32
+lora_alpha: 64
+lora_dropout: 0.05
+peft_use_dora: true                          # Round 2: DoRA
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+# Context: train at 4K (Kaggle T4×2 budget), serve at 16K via YaRN ×4
+sequence_len: 4096
+sample_packing: true                          # Round 5
+pad_to_sequence_len: true
+rope_theta: 1000000.0
+rope_scaling:
+  type: yarn
+  factor: 4.0
+  original_max_position_embeddings: 32768
+
+# Datasets — 5 populated repos (training-pairs + pairs-A/B/C/D)
+datasets:
+  - path: axentx/surrogate-1-training-pairs
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
+  - path: axentx/surrogate-1-pairs-A
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
+  - path: axentx/surrogate-1-pairs-B
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
+  - path: axentx/surrogate-1-pairs-C
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
+  - path: axentx/surrogate-1-pairs-D
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
+
+val_set_size: 0.02
+output_dir: ./out/v1.5-stage1-sft
+
+# Training hyperparams (32B + Kaggle-tuned)
+num_epochs: 3
+micro_batch_size: 1
+gradient_accumulation_steps: 16              # effective batch 16 (2 GPUs × 8)
+learning_rate: 1.0e-4                         # 32B sweet spot (v1: 2e-4, v2 72B: 7e-5)
+lr_scheduler: cosine                          # Round 11
+warmup_ratio: 0.03                            # Round 11
+optimizer: adamw_8bit                         # Round 9: 8-bit paged AdamW
+weight_decay: 0.01
+max_grad_norm: 1.0
+
+# Memory tricks (full stack)
+bf16: true                                    # Round 10
+fp16: false
+gradient_checkpointing: true                  # Round 8
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+flash_attention: true                         # Round 4 (FA2 on T4)
+liger_kernel: true                            # Round 3 — 30-40% memory cut
+neftune_noise_alpha: 5                        # Round 6 — instruct lift
+
+# DeepSpeed ZeRO-3 + CPU offload (required for 32B on T4×2)
+deepspeed: deepspeed-zero3.json
+
+# Eval / save
+eval_steps: 200
+save_steps: 200
+save_total_limit: 3
+logging_steps: 10
+
+# Hub push
+hub_model_id: axentx/surrogate-1-coder-32B-v1.5
+hub_strategy: every_save
+push_to_hub: true
+hub_private_repo: false
+
+wandb_project: surrogate-1-v1.5
+wandb_run_id: stage1-sft-v1.5
+
+special_tokens:
+  pad_token: <|endoftext|>
+
+resume_from_checkpoint: null
+auto_resume_from_checkpoints: true

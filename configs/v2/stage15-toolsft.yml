@@ -1,0 +1,84 @@
+# Surrogate-1 v2 — Stage 1.5: Tool-Use SFT (Hermes XML format)
+# Continue from Stage 1 LoRA. Adds 102K tool-use samples → BFCL v3 70+.
+# Run: axolotl train configs/v2/stage15-toolsft.yml
+
+base_model: axentx/surrogate-1-coder-7b-v2-sft   # output of Stage 1
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
+trust_remote_code: true
+
+load_in_4bit: true
+strict: false
+
+# Same LoRA config — continue training
+adapter: lora
+lora_r: 64
+lora_alpha: 128
+lora_dropout: 0.05
+peft_use_dora: true
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+sequence_len: 32768
+sample_packing: true
+pad_to_sequence_len: true
+rope_theta: 1000000.0
+rope_scaling:
+  type: yarn
+  factor: 4.0
+  original_max_position_embeddings: 32768
+
+# Tool-use datasets — Hermes XML format
+# 102K total: 7.93K Hermes-FC (gold) + 30K xLAM + 50K Toucan + 15K When2Call + 10K ToolMind + 5K Nemotron-SWE + 2.4K SWE-Gym
+datasets:
+  - path: axentx/surrogate-1-v2-tools         # aggregated + sanitized
+    type: chat_template
+    chat_template: tokenizer_default
+    field_messages: messages
+
+val_set_size: 0.02
+output_dir: ./out/v2-stage15-toolsft
+
+# 2 epochs (was 3 for general SFT — tool-use tasks more focused)
+num_epochs: 2
+micro_batch_size: 1
+gradient_accumulation_steps: 16
+learning_rate: 1.0e-4
+lr_scheduler: cosine
+warmup_ratio: 0.03
+optimizer: adamw_torch_fused
+weight_decay: 0.01
+max_grad_norm: 1.0
+
+bf16: true
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+flash_attention: true
+liger_kernel: true
+
+eval_steps: 200
+save_steps: 200
+save_total_limit: 3
+logging_steps: 10
+
+hub_model_id: axentx/surrogate-1-coder-7b-v2-toolsft
+hub_strategy: every_save
+push_to_hub: true
+hub_private_repo: false
+
+wandb_project: surrogate-1-v2
+wandb_run_id: stage15-toolsft
+
+# Hermes special tokens (already in Qwen tokenizer)
+special_tokens:
+  pad_token: <|endoftext|>
+
+resume_from_checkpoint: null
+auto_resume_from_checkpoints: true

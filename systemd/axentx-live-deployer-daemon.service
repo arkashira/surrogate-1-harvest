@@ -1,0 +1,25 @@
+[Unit]
+Description=axentx Live-Deployer — push landing pages to Cloudflare Pages
+After=network-online.target axentx-landing-generator-daemon.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=-/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=LIVE_DEPLOYER_CYCLE_SEC=1800
+Environment=LIVE_MIN_SCORE=20
+Environment=LIVE_MAX_PER_CYCLE=15
+ExecStart=/usr/bin/python3 /opt/surrogate-1-harvest/bin/axentx-live-deployer-daemon.py
+Restart=on-failure
+RestartSec=15
+MemoryMax=384M
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

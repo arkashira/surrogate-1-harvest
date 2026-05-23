@@ -1,0 +1,26 @@
+[Unit]
+Description=axentx pipeline / commit — consumes commit-queue, pushes to GitHub (continuous)
+After=network-online.target surrogate-coordinator.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=AXENTX_ROOT=/opt/axentx
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-commit-daemon.py
+Restart=always
+RestartSec=15
+OOMPolicy=continue
+# Resource limits — coordinator has 1 GB RAM, keep daemons light
+MemoryMax=64M
+MemoryHigh=48M
+TasksMax=8
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

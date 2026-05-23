@@ -1,0 +1,21 @@
+[Unit]
+Description=axentx coordinator — shared queue/KV/knowledge plane (replaces Supabase)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=COORDINATOR_PORT=7878
+ExecStart=/usr/bin/python3 /opt/surrogate-1-harvest/bin/axentx-coordinator-server.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/axentx-coordinator.log
+StandardError=append:/var/log/axentx-coordinator.log
+MemoryMax=512M
+CPUQuota=30%
+
+[Install]
+WantedBy=multi-user.target

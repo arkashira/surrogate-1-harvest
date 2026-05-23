@@ -1,0 +1,20 @@
+[Unit]
+Description=axentx HF flusher — drains D1 staging buffer to HF Datasets every 15min
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-hf-flusher-daemon.py
+Restart=always
+RestartSec=20
+MemoryMax=128M
+TasksMax=16
+
+[Install]
+WantedBy=multi-user.target

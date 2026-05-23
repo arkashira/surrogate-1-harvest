@@ -1,0 +1,123 @@
+# Surrogate-1 v2 Phase C — Stage 3: DAPO RL with validator-graded rewards.
+#
+# DAPO = Decoupled Clip + Asymmetric Policy Optimization (ByteDance/Tsinghua).
+# Beats GRPO by ~5-8pp on AIME 2024 with Qwen2.5-32B (paper arxiv 2503.14476).
+# Key tricks:
+#   1. Clip-Higher: relax clip range to allow more diversity (anti-entropy-collapse)
+#   2. Dynamic Sampling: weight rollouts by difficulty, not equally
+#   3. Token-level Policy Gradient Loss: critical for long-CoT
+#
+# Run via verl framework: https://github.com/verl-project/verl
+# Reference: https://verl.readthedocs.io/en/latest/algo/dapo.html
+#
+# ETA: ~24 hr on 1× H200 (or 8× H100 for 3× speedup)
+
+# Algorithm settings (verl format)
+algorithm:
+  algorithm: dapo
+  # DAPO-specific
+  clip_higher: 0.28              # vs GRPO's 0.2 — allows more exploration
+  clip_lower: 0.20
+  dynamic_sampling: true
+  token_level_loss: true
+  # Standard PPO-family
+  gamma: 1.0
+  lam: 1.0
+  kl_coef: 0.001                 # very low — DAPO uses minimal KL anchor
+  entropy_coef: 0.001
+
+# Model + adapter
+actor_rollout_ref:
+  hybrid_engine: true
+  model:
+    path: axentx/surrogate-1-coder-7b-v2-merged   # output of merge-9-loras.sh
+    enable_gradient_checkpointing: true
+    use_remove_padding: true
+  actor:
+    optim:
+      lr: 5.0e-7                  # very low for RL (vs 1e-4 SFT)
+      lr_warmup_steps: 100
+      weight_decay: 0.0
+      strategy: fsdp
+      fsdp_config:
+        wrap_policy:
+          min_num_params: 0
+        param_offload: false
+        optimizer_offload: false
+    ppo_mini_batch_size: 32
+    ppo_micro_batch_size_per_gpu: 1
+    use_kl_loss: false           # DAPO doesn't need KL loss
+    grad_clip: 1.0
+    ulysses_sequence_parallel_size: 1
+  rollout:
+    name: vllm
+    temperature: 1.0             # high for exploration in RL
+    top_p: 0.95
+    top_k: -1
+    n: 8                         # 8 generations per prompt for DAPO advantage
+    max_response_length: 4096
+    max_prompt_length: 8192
+    tensor_model_parallel_size: 1
+    gpu_memory_utilization: 0.45
+    free_cache_engine: true
+  ref:
+    fsdp_config:
+      param_offload: true        # offload reference model to CPU
+
+# Data — code RL with validator-graded rewards
+data:
+  train_files:
+    - SWE-Gym/SWE-Gym             # 491 verifiable code tasks
+    - SWE-Gym/SWE-smith           # 26K filtered (NeurIPS 2025)
+    - R2E-Gym/R2E-Gym-Lite        # used by DeepSWE
+    - axentx/surrogate-1-v2-devsecops-rl  # custom DevSecOps tasks (build separately)
+  val_files:
+    - axentx/surrogate-1-v2-rl-val
+  prompt_key: prompt
+  response_key: response
+  max_prompt_length: 8192
+  max_response_length: 4096
+  train_batch_size: 256
+  val_batch_size: 64
+
+# Reward — composite validator-graded
+reward_model:
+  reward_manager: composite       # custom: see rewards.py
+  rewards:
+    - type: test_pass             # E2B/Modal sandbox runs pytest
+      weight: 1.0
+    - type: lint_clean            # hadolint/tflint/actionlint/shellcheck/kubeconform
+      weight: 0.3
+    - type: security_clean        # semgrep/checkov/cfn-guard/cfn-nag
+      weight: 0.3
+    - type: cite_correct          # repo-RAG citation valid
+      weight: 0.2
+    - type: no_phantom_imports    # AST + import-validity check
+      weight: 0.2
+    - type: honest_idk            # TruthRL ternary neutral
+      weight: 0.0
+    - type: confident_wrong       # heavy penalty
+      weight: -1.0
+
+# Trainer
+trainer:
+  total_epochs: 1
+  total_training_steps: 5000
+  save_freq: 500
+  test_freq: 200
+  logger: ['console', 'wandb']
+  project_name: surrogate-1-v2
+  experiment_name: stage3-dapo-rlvr
+  default_local_dir: ./out/v2-stage3-dapo
+  hub_model_id: axentx/surrogate-1-coder-7b-v2-rlvr
+  hub_strategy: every_save
+  push_to_hub: true
+
+# vLLM serving for rollouts
+vllm:
+  tensor_model_parallel_size: 1
+  enforce_eager: false
+  gpu_memory_utilization: 0.45
+  max_num_batched_tokens: 16384
+  trust_remote_code: true
+  enable_chunked_prefill: true

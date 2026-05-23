@@ -1,0 +1,18 @@
+[Unit]
+Description=Surrogate-1 Watchdog (HF Spaces + Kaggle + Coordinator monitor)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-watchdog.env
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python -u /opt/surrogate-1-harvest/bin/oci-watchdog-daemon.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

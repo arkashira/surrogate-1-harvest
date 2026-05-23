@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>surrogate-1 — pricing</title>
+  <meta name="description" content="surrogate-1 pricing — pay-as-you-go API tiers for autonomous code agents.">
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --panel: #11151d;
+      --line: #232a36;
+      --fg: #e6e8eb;
+      --muted: #8a93a3;
+      --accent: #5cc8ff;
+      --highlight: #fcd34d;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      color: var(--fg);
+      background: var(--bg);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 48px 24px; }
+    nav { display: flex; gap: 18px; align-items: center; margin-bottom: 56px; }
+    .logo { font-weight: 700; letter-spacing: -0.02em; font-size: 17px; }
+    .logo-mark { color: var(--accent); }
+    nav a { color: var(--muted); text-decoration: none; font-size: 14px; }
+    nav a:hover { color: var(--fg); }
+    nav .spacer { flex: 1; }
+    h1 {
+      font-size: clamp(30px, 5vw, 44px);
+      letter-spacing: -0.025em;
+      margin: 0 0 12px;
+      font-weight: 700;
+    }
+    .lede { color: var(--muted); margin: 0 0 40px; font-size: 17px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .tier {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+    }
+    .tier.highlight { border-color: var(--accent); position: relative; }
+    .tier.highlight::before {
+      content: "Most popular";
+      position: absolute;
+      top: -10px; left: 16px;
+      background: var(--accent); color: #052033;
+      font-size: 11px; font-weight: 700; padding: 3px 10px;
+      border-radius: 10px; letter-spacing: 0.04em;
+    }
+    .tier h3 { margin: 0 0 4px; font-size: 18px; }
+    .tier .price {
+      font-size: 36px; font-weight: 700; letter-spacing: -0.025em;
+      margin: 8px 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .tier .price small { font-size: 14px; color: var(--muted); font-weight: 500; }
+    .tier .desc { color: var(--muted); font-size: 13px; margin-bottom: 16px; min-height: 36px; }
+    .tier ul { list-style: none; padding: 0; margin: 0 0 20px; flex: 1; }
+    .tier li {
+      padding: 6px 0;
+      font-size: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .tier li:last-child { border: 0; }
+    .tier li::before { content: "✓ "; color: var(--accent); font-weight: 700; }
+    .tier .btn {
+      display: block;
+      text-align: center;
+      padding: 11px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      text-decoration: none;
+      background: var(--accent);
+      color: #052033;
+      cursor: pointer;
+      border: 0;
+      width: 100%;
+    }
+    .tier .btn-secondary { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+    .variant-tag {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-top: 14px;
+      text-align: center;
+    }
+    footer {
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <span class="logo"><span class="logo-mark">⬢</span>&nbsp;surrogate-1</span>
+      <span class="spacer"></span>
+      <a href="/">home</a>
+      <a href="/status.html">status</a>
+      <a href="https://surrogate-1-cursor.ashira.workers.dev/dash">dashboard</a>
+    </nav>
+
+    <h1>Pricing</h1>
+    <p class="lede">Pay only for what you use. No seats, no minimums.</p>
+
+    <!-- A/B variant: A — premium-anchored 3-tier -->
+    <div id="variant-a" class="grid" hidden>
+      <div class="tier">
+        <h3>Hobby</h3>
+        <div class="price">$0<small>/mo</small></div>
+        <div class="desc">For tinkering and personal projects.</div>
+        <ul>
+          <li>100 cursor advances/day</li>
+          <li>10 AI inferences/day</li>
+          <li>Public dashboard</li>
+        </ul>
+        <button class="btn" data-experiment="pricing_v1" data-variant="A" data-target="hobby">Start free</button>
+      </div>
+      <div class="tier highlight">
+        <h3>Pro</h3>
+        <div class="price">$29<small>/mo</small></div>
+        <div class="desc">For solo devs shipping in production.</div>
+        <ul>
+          <li>10k cursor advances/day</li>
+          <li>1k AI inferences/day</li>
+          <li>Priority queue</li>
+          <li>Email alerts</li>
+        </ul>
+        <button class="btn" data-experiment="pricing_v1" data-variant="A" data-target="pro">Start Pro</button>
+      </div>
+      <div class="tier">
+        <h3>Team</h3>
+        <div class="price">$199<small>/mo</small></div>
+        <div class="desc">For teams operating fleets of agents.</div>
+        <ul>
+          <li>Unlimited advances</li>
+          <li>50k AI inferences/day</li>
+          <li>Custom rate limits</li>
+          <li>Dedicated support</li>
+        </ul>
+        <button class="btn btn-secondary" data-experiment="pricing_v1" data-variant="A" data-target="team">Talk to us</button>
+      </div>
+    </div>
+
+    <!-- A/B variant: B — usage-based, no monthly seat -->
+    <div id="variant-b" class="grid" hidden>
+      <div class="tier">
+        <h3>Free</h3>
+        <div class="price">$0</div>
+        <div class="desc">100 advances/day. No card.</div>
+        <ul>
+          <li>100 cursor advances/day</li>
+          <li>Public dashboard</li>
+          <li>Community support</li>
+        </ul>
+        <button class="btn" data-experiment="pricing_v1" data-variant="B" data-target="free">Try free</button>
+      </div>
+      <div class="tier highlight">
+        <h3>Usage</h3>
+        <div class="price">$0.001<small>/req</small></div>
+        <div class="desc">Pay only for what you use.</div>
+        <ul>
+          <li>$0.001 per cursor advance</li>
+          <li>$0.005 per AI inference</li>
+          <li>No monthly minimum</li>
+          <li>Volume discounts at $1k+</li>
+        </ul>
+        <button class="btn" data-experiment="pricing_v1" data-variant="B" data-target="usage">Add usage</button>
+      </div>
+      <div class="tier">
+        <h3>Enterprise</h3>
+        <div class="price">Custom</div>
+        <div class="desc">Volume + SLA + private deployment.</div>
+        <ul>
+          <li>Volume pricing</li>
+          <li>99.9% SLA</li>
+          <li>SAML SSO</li>
+          <li>Dedicated infrastructure</li>
+        </ul>
+        <button class="btn btn-secondary" data-experiment="pricing_v1" data-variant="B" data-target="enterprise">Contact sales</button>
+      </div>
+    </div>
+
+    <p class="variant-tag" id="variant-tag">loading variant…</p>
+
+    <footer>
+      Pricing is currently in private beta. Click any tier to join the waitlist.
+      <br>questions? <a href="mailto:hello@axentx.com">hello@axentx.com</a>
+    </footer>
+  </div>
+
+  <script>
+    const WORKER = "https://surrogate-1-cursor.ashira.workers.dev";
+    const EXPERIMENT_KEY = "pricing_v1";
+
+    async function selectVariant() {
+      // Hash visitor ID (random UUID, persisted in localStorage) → bucket A/B
+      let vid = localStorage.getItem("vid");
+      if (!vid) {
+        vid = (crypto.randomUUID && crypto.randomUUID()) || (Math.random().toString(36).slice(2));
+        localStorage.setItem("vid", vid);
+      }
+      // Try to fetch experiment config; fall back to local 50/50
+      let variants = ["A", "B"];
+      try {
+        const resp = await fetch(`${WORKER}/experiments/${EXPERIMENT_KEY}/active`);
+        if (resp.ok) {
+          const cfg = await resp.json();
+          if (Array.isArray(cfg.variants) && cfg.variants.length) variants = cfg.variants;
+        }
+      } catch (e) { /* offline ok */ }
+
+      // Stable bucket: hash of vid mod variants.length
+      let h = 0;
+      for (let i = 0; i < vid.length; i++) h = (h * 31 + vid.charCodeAt(i)) | 0;
+      const variant = variants[Math.abs(h) % variants.length];
+
+      const showId = variant === "B" ? "variant-b" : "variant-a";
+      document.getElementById(showId).hidden = false;
+      document.getElementById("variant-tag").textContent = `experiment: ${EXPERIMENT_KEY} · variant ${variant}`;
+
+      // Wire up clicks
+      document.querySelectorAll("[data-experiment]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const target = btn.dataset.target;
+          fetch(`${WORKER}/experiments/${EXPERIMENT_KEY}/click`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ variant, target }),
+          }).catch(() => {});
+          alert(`Thanks! Logged: variant ${variant} → ${target}.\n(Beta: signup flow coming soon.)`);
+        });
+      });
+    }
+    selectVariant();
+  </script>
+</body>
+</html>

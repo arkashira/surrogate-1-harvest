@@ -1,0 +1,23 @@
+[Unit]
+Description=axentx Landing-Page Generator — static HTML per product
+After=network-online.target axentx-top-product-ranker-daemon.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=-/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=LANDING_CYCLE_SEC=1800
+ExecStart=/usr/bin/python3 /opt/surrogate-1-harvest/bin/axentx-landing-generator-daemon.py
+Restart=on-failure
+RestartSec=10
+MemoryMax=256M
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,43 @@
+# ROADMAP-100 #10 — Conventional Commits enforced (CI side).
+#
+# Lints every commit on PRs and the push to main. Auto-bot pushes go directly
+# to main today (no PR), so the push-trigger catches them and surfaces violations
+# in the workflow log. Once branch protection (#3) flips, the PR-trigger becomes
+# the gate.
+name: commitlint
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: |
+          npm install --no-save \
+            @commitlint/cli@19 \
+            @commitlint/config-conventional@19
+      - name: Lint commit range
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            from="${{ github.event.pull_request.base.sha }}"
+            to="${{ github.event.pull_request.head.sha }}"
+          else
+            from="${{ github.event.before }}"
+            to="${{ github.event.after }}"
+          fi
+          # Skip if first push (before == zeros)
+          if [ "$from" = "0000000000000000000000000000000000000000" ]; then
+            echo "First push to branch — skipping lint"
+            exit 0
+          fi
+          npx commitlint --from "$from" --to "$to" --verbose

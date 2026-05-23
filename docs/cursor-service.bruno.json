@@ -1,0 +1,129 @@
+{
+  "$comment": "ROADMAP-100 #88 — Bruno collection for the Cursor service. Bruno is a Git-friendly Postman alternative (https://www.usebruno.com). Import: `bruno import-postman` works with this format too. Or copy individual `bru` files out of the requests array. Auth uses {{authToken}} env var.",
+  "version": "1",
+  "name": "surrogate-1-cursor",
+  "type": "collection",
+  "environments": [
+    {
+      "name": "prod",
+      "variables": {
+        "baseUrl": "https://surrogate-1-cursor.ashira.workers.dev",
+        "authToken": "{{ENV_AUTH_TOKEN}}"
+      }
+    },
+    {
+      "name": "local",
+      "variables": {
+        "baseUrl": "http://localhost:8787",
+        "authToken": "dev-token"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "name": "health",
+      "method": "GET",
+      "url": "{{baseUrl}}/health",
+      "auth": "none",
+      "expect": {"status": 200, "json.status": "ok"}
+    },
+    {
+      "name": "datasets-list",
+      "method": "GET",
+      "url": "{{baseUrl}}/dynamic-datasets",
+      "auth": "none",
+      "notes": "Cached 60s in KV. Returns up to 5000 rows."
+    },
+    {
+      "name": "cursor-read",
+      "method": "GET",
+      "url": "{{baseUrl}}/cursor/reddit-pains-v3",
+      "auth": "none"
+    },
+    {
+      "name": "cursor-advance",
+      "method": "POST",
+      "url": "{{baseUrl}}/cursor/reddit-pains-v3/advance",
+      "headers": {
+        "X-Auth-Token": "{{authToken}}",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "size": 1000,
+        "last_batch": "page=12",
+        "total": 50000
+      },
+      "expect": {"status": 200, "json.dataset_id": "reddit-pains-v3"}
+    },
+    {
+      "name": "datasets-upsert",
+      "method": "POST",
+      "url": "{{baseUrl}}/datasets",
+      "headers": {
+        "X-Auth-Token": "{{authToken}}",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "slug": "example-dataset",
+        "hf_id": "ashirato/example-dataset",
+        "schema": "messages",
+        "license": "mit",
+        "cap": 50000,
+        "score": 0.5
+      }
+    },
+    {
+      "name": "audit-recent",
+      "method": "GET",
+      "url": "{{baseUrl}}/audit?limit=20",
+      "headers": {"X-Auth-Token": "{{authToken}}"}
+    },
+    {
+      "name": "metrics-prom",
+      "method": "GET",
+      "url": "{{baseUrl}}/metrics",
+      "auth": "none",
+      "notes": "Prometheus exposition format (text/plain)."
+    },
+    {
+      "name": "tasks-push",
+      "method": "POST",
+      "url": "{{baseUrl}}/tasks/push",
+      "headers": {
+        "X-Auth-Token": "{{authToken}}",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "kind": "reindex",
+        "slug": "reddit-pains-v3"
+      }
+    },
+    {
+      "name": "ai-proxy",
+      "method": "POST",
+      "url": "{{baseUrl}}/ai/llama-3.3-70b-instruct",
+      "headers": {
+        "X-Auth-Token": "{{authToken}}",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 128
+      }
+    },
+    {
+      "name": "dash-html",
+      "method": "GET",
+      "url": "{{baseUrl}}/dash",
+      "auth": "none",
+      "notes": "HTML dashboard. View in browser, not in Bruno."
+    }
+  ],
+  "_curl_fallback": {
+    "$comment": "If Bruno isn't installed, every request above maps 1:1 to a curl. Examples below.",
+    "health": "curl -s $baseUrl/health",
+    "cursor-advance": "curl -s -X POST -H \"X-Auth-Token: $authToken\" -H 'Content-Type: application/json' -d '{\"size\":1000,\"last_batch\":\"page=12\",\"total\":50000}' $baseUrl/cursor/reddit-pains-v3/advance",
+    "datasets-upsert": "curl -s -X POST -H \"X-Auth-Token: $authToken\" -H 'Content-Type: application/json' -d '{\"slug\":\"example-dataset\",\"hf_id\":\"ashirato/example-dataset\"}' $baseUrl/datasets",
+    "audit": "curl -s -H \"X-Auth-Token: $authToken\" \"$baseUrl/audit?limit=20\""
+  }
+}

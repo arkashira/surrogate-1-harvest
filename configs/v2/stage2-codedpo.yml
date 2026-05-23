@@ -1,0 +1,92 @@
+# Surrogate-1 v2 — Stage 2: Code DPO with Focused-DPO loss (arxiv 2502.11475)
+# Continue from Stage 1.6. ~55K bug/no-bug pairs + exec-graded preferences.
+# Run: axolotl train configs/v2/stage2-codedpo.yml
+
+base_model: axentx/surrogate-1-coder-7b-v2-agent
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
+trust_remote_code: true
+
+load_in_4bit: true
+strict: false
+
+adapter: lora
+lora_r: 64
+lora_alpha: 128
+lora_dropout: 0.05
+peft_use_dora: true
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+sequence_len: 16384
+sample_packing: false                        # NOT for DPO — pairs must align
+rope_theta: 1000000.0
+rope_scaling:
+  type: yarn
+  factor: 2.0
+  original_max_position_embeddings: 32768
+
+# RL config
+rl: dpo
+rl_beta: 0.1
+dpo_loss_type: focused                       # arxiv 2502.11475 — localized loss
+dpo_label_smoothing: 0.0
+
+# DPO datasets
+datasets:
+  - path: Vezora/Code-Preference-Pairs       # 55K bug/no-bug
+    type: dpo.chat_template
+    field_chosen: chosen
+    field_rejected: rejected
+  - path: argilla/distilabel-capybara-dpo-7k-binarized
+    type: dpo.chat_template
+  - path: axentx/surrogate-1-v2-dpo-codeexec  # rejection-sampled exec-graded
+    type: dpo.chat_template
+
+val_set_size: 0.02
+output_dir: ./out/v2-stage2-codedpo
+
+# DPO uses much lower lr + constant LR + fewer epochs
+num_epochs: 1
+micro_batch_size: 1
+gradient_accumulation_steps: 16
+learning_rate: 5.0e-6                        # 20× lower than SFT
+lr_scheduler: constant
+warmup_ratio: 0.0
+optimizer: adamw_torch_fused
+weight_decay: 0.0
+max_grad_norm: 1.0
+
+bf16: true
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+flash_attention: true
+
+eval_steps: 100
+save_steps: 200
+save_total_limit: 3
+logging_steps: 10
+
+hub_model_id: axentx/surrogate-1-coder-7b-v2-dpo
+hub_strategy: every_save
+push_to_hub: true
+hub_private_repo: false
+
+wandb_project: surrogate-1-v2
+wandb_run_id: stage2-codedpo
+
+# Abort if KL > 5 (preference collapse)
+early_stopping_patience: 3
+
+special_tokens:
+  pad_token: <|endoftext|>
+
+resume_from_checkpoint: null
+auto_resume_from_checkpoints: true

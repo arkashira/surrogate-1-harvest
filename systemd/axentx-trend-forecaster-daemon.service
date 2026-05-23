@@ -1,0 +1,24 @@
+[Unit]
+Description=axentx trend-forecaster — detect rising trends + 3-6mo opportunity forecasts
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=FORECASTER_POLL_SEC=14400
+Environment=FORECASTER_WINDOW_DAYS=14
+Environment=FORECASTER_TOP_N=20
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-trend-forecaster-daemon.py
+Restart=always
+RestartSec=120
+MemoryMax=256M
+TasksMax=16
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

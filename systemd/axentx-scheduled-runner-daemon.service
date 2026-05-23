@@ -1,0 +1,18 @@
+[Unit]
+Description=axentx scheduled-runner — always-on replacement for .timer units (secret-watchdog + mini-sprint/retro)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-scheduled-runner-daemon.py
+Restart=always
+RestartSec=15
+MemoryMax=128M
+CPUQuota=15%
+
+[Install]
+WantedBy=multi-user.target

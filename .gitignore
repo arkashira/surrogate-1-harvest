@@ -1,0 +1,28 @@
+# Virtualenv (rebuilt by RUNBOOK.sh)
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Runtime state (NOT code — recreated by daemons)
+state/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Logs
+*.log
+logs/
+
+# Secrets (NEVER commit)
+.env
+*.key
+*.pem
+api_key*
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp

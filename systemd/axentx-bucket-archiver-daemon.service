@@ -1,0 +1,21 @@
+[Unit]
+Description=axentx bucket archiver — stream large jsonls → Cloudflare R2 (free 10GB)
+After=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-bucket-archiver-daemon.py
+Restart=always
+RestartSec=30
+MemoryMax=512M
+TasksMax=4
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

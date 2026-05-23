@@ -1,0 +1,34 @@
+name = "surrogate-1-cursor"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+account_id = "77fb5e6c3716be794dc3e8467ba9f285"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "surrogate-1-cursor"
+database_id = "ae95ac58-7b7e-40d9-8708-518c23281ae6"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "3e334007e0cd472493616f8c67337270"
+
+[[kv_namespaces]]
+binding = "HEARTBEAT"
+id = "8fb8df05ac434f8188a19f5f6dbafd8e"
+
+[ai]
+binding = "AI"
+
+[[queues.producers]]
+binding = "TASKS_QUEUE"
+queue = "surrogate-1-tasks"
+
+[[queues.consumers]]
+queue = "surrogate-1-tasks"
+max_batch_size = 10
+max_retries = 3
+
+[triggers]
+# */5  — HF Space health probes (writes space_health)
+# */15 — synthetic canary end-to-end smoke test (writes canary_runs)
+crons = ["*/5 * * * *", "*/15 * * * *"]

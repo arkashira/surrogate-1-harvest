@@ -1,0 +1,106 @@
+# Surrogate-1 v2 — Stage 1 (SDFT variant, 2026-04 Round 5).
+#
+# Replaces vanilla SFT with Self-Distillation Fine-Tuning per arxiv 2601.19897.
+# Data file is produced by bin/v2/sdft-trainer.py BEFORE this stage runs:
+#   python3 bin/v2/sdft-trainer.py --input /data/v2-train-clean.jsonl \
+#                                  --stage stage1 --max 50000
+#   → /data/v2/sdft/stage1-YYYYMMDD.jsonl
+#
+# Why: continual LoRA training without catastrophic forgetting. Distilled
+# responses live close to the model's own distribution, so updating LoRA
+# weights moves it less off the prior manifold.
+#
+# Run: axolotl train configs/v2/stage1-sdft.yml
+# Compute: ~12-15 hr on Lightning H200 (same envelope as stage1-sft).
+
+base_model: Qwen/Qwen2.5-72B-Instruct
+# Upgraded 2026-04-30 (32B → 72B). SDFT recipe applies the same on 72B;
+# each step self-distills via SDFT. Lightning H200 141GB fits 72B QLoRA
+# at seq=16K with comfortable margin (~110 GB peak runtime).
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
+trust_remote_code: true
+
+# 4-bit quantization
+load_in_4bit: true
+strict: false
+
+# DoRAN-ready LoRA config — r=64 for capacity, all-linear, DoRA decomposed.
+# (DoRAN noise-injection is a runtime patch via bin/v2/doran-adapter.py once
+# implemented; vanilla DoRA is the safe fallback that ships today.)
+adapter: lora
+lora_r: 64
+lora_alpha: 128
+lora_dropout: 0.05
+peft_use_dora: true
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+# Context: train at 16K (72B QLoRA budget), serve at 64K via YaRN ×4
+sequence_len: 16384
+sample_packing: true
+pad_to_sequence_len: true
+rope_theta: 1000000.0
+rope_scaling:
+  type: yarn
+  factor: 4.0
+  original_max_position_embeddings: 32768
+
+# Datasets — SDFT-distilled outputs (NOT raw gold). The whole point.
+datasets:
+  - path: /data/v2/sdft/stage1.jsonl       # symlink → latest stage1-YYYYMMDD.jsonl
+    type: chat_template
+    field_messages: messages
+    ds_type: json
+
+val_set_size: 0.02
+output_dir: /data/v2/out/stage1-sdft
+
+# Training hyperparams — slightly lower LR than vanilla SFT because SDFT
+# data is closer to current distribution (smaller updates needed).
+num_epochs: 3
+micro_batch_size: 1
+gradient_accumulation_steps: 32         # effective batch = 32 (72B-tuned)
+learning_rate: 5.0e-5                   # 72B + SDFT both want lower (was 7e-5 on 32B)
+lr_scheduler: cosine
+warmup_ratio: 0.03
+optimizer: adamw_torch_fused
+weight_decay: 0.01
+max_grad_norm: 1.0
+
+# Memory tricks
+bf16: true
+fp16: false
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+flash_attention: true
+liger_kernel: true
+neftune_noise_alpha: 5
+
+# Eval / save
+eval_steps: 200
+save_steps: 200
+save_total_limit: 3
+logging_steps: 10
+
+# Hub push
+hub_model_id: axentx/surrogate-1-coder-72b-v2-sdft
+hub_strategy: every_save
+push_to_hub: true
+hub_private_repo: false
+
+wandb_project: surrogate-1-v2
+wandb_run_id: stage1-sdft
+
+special_tokens:
+  pad_token: <|endoftext|>
+
+resume_from_checkpoint: null
+auto_resume_from_checkpoints: true

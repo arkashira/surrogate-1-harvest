@@ -1,0 +1,23 @@
+[Unit]
+Description=axentx Top-Product Ranker — demand-signal scorer
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=-/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=RANKER_CYCLE_SEC=1800
+ExecStart=/usr/bin/python3 /opt/surrogate-1-harvest/bin/axentx-top-product-ranker-daemon.py
+Restart=on-failure
+RestartSec=10
+MemoryMax=256M
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

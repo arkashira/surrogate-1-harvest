@@ -1,0 +1,86 @@
+# Surrogate-1 v2 — Stage 1.6: Multi-Agent SFT (orchestrator pattern)
+# Continue from Stage 1.5. Adds 20K + 500 synth orchestrator traces → GAIA L1 20-30%.
+# Run: axolotl train configs/v2/stage16-agent.yml
+
+base_model: axentx/surrogate-1-coder-7b-v2-toolsft
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
+trust_remote_code: true
+
+load_in_4bit: true
+strict: false
+
+adapter: lora
+lora_r: 64
+lora_alpha: 128
+lora_dropout: 0.05
+peft_use_dora: true
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+# Slightly shorter context for agent traces (most fit in 16K)
+sequence_len: 16384
+sample_packing: true
+pad_to_sequence_len: true
+rope_theta: 1000000.0
+rope_scaling:
+  type: yarn
+  factor: 2.0
+  original_max_position_embeddings: 32768
+
+# Agent traces:
+# - lambda/hermes-agent-reasoning-traces: 14K
+# - nebius/SWE-agent-trajectories filtered: 5K
+# - SWE-Gym successful: 400
+# - Synth orchestrator (Cerebras+Groq+OpenRouter generated): 500
+# - Orca-AgentInstruct anchor: 1.5K
+datasets:
+  - path: axentx/surrogate-1-v2-agent
+    type: chat_template
+    chat_template: tokenizer_default
+    field_messages: messages
+
+val_set_size: 0.02
+output_dir: ./out/v2-stage16-agent
+
+num_epochs: 2
+micro_batch_size: 1
+gradient_accumulation_steps: 16
+learning_rate: 1.0e-4
+lr_scheduler: cosine
+warmup_ratio: 0.03
+optimizer: adamw_torch_fused
+weight_decay: 0.01
+max_grad_norm: 1.0
+
+bf16: true
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+flash_attention: true
+liger_kernel: true
+
+eval_steps: 200
+save_steps: 200
+save_total_limit: 3
+logging_steps: 10
+
+hub_model_id: axentx/surrogate-1-coder-7b-v2-agent
+hub_strategy: every_save
+push_to_hub: true
+hub_private_repo: false
+
+wandb_project: surrogate-1-v2
+wandb_run_id: stage16-agent
+
+special_tokens:
+  pad_token: <|endoftext|>
+
+resume_from_checkpoint: null
+auto_resume_from_checkpoints: true

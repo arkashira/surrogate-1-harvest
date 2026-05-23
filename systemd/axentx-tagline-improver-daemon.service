@@ -1,0 +1,24 @@
+[Unit]
+Description=axentx Tagline Improver — LLM-rewrite generic taglines
+After=network-online.target axentx-bd-daemon.service
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=-/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=TAGLINE_CYCLE_SEC=21600
+Environment=TAGLINE_MAX_PER_CYCLE=4
+ExecStart=/usr/bin/python3 /opt/surrogate-1-harvest/bin/axentx-tagline-improver-daemon.py
+Restart=on-failure
+RestartSec=30
+MemoryMax=256M
+Nice=18
+
+[Install]
+WantedBy=multi-user.target

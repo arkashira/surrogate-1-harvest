@@ -1,0 +1,23 @@
+[Unit]
+Description=axentx external-knowledge-ingester — pulls nexu-io guides + skills + design-systems into shared_knowledge
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=EXT_KB_POLL_SEC=1800
+Environment=EXT_KB_ROOT=/tmp/external-kb
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-external-knowledge-ingester-daemon.py
+Restart=always
+RestartSec=300
+MemoryMax=512M
+TasksMax=64
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,23 @@
+[Unit]
+Description=axentx Index Deployer — aggregator landing for all products
+After=network-online.target axentx-live-deployer-daemon.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=-/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=INDEX_CYCLE_SEC=900
+ExecStart=/usr/bin/python3 /opt/surrogate-1-harvest/bin/axentx-index-deployer-daemon.py
+Restart=on-failure
+RestartSec=15
+MemoryMax=256M
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

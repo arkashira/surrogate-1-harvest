@@ -1,0 +1,72 @@
+# Surrogate-1 v2 — Stage 2.5: Tool-Use DPO (When2Call refusal)
+# Continue from Stage 2. Teaches when to refuse vs force tool-use.
+# Run: axolotl train configs/v2/stage25-tooldpo.yml
+
+base_model: axentx/surrogate-1-coder-7b-v2-dpo
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
+trust_remote_code: true
+
+load_in_4bit: true
+strict: false
+
+adapter: lora
+lora_r: 64
+lora_alpha: 128
+lora_dropout: 0.05
+peft_use_dora: true
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+sequence_len: 8192                           # tool dialogues usually fit 8K
+sample_packing: false
+rope_theta: 1000000.0
+
+rl: dpo
+rl_beta: 0.1
+dpo_loss_type: sigmoid                       # standard for refusal training
+dpo_label_smoothing: 0.0
+
+datasets:
+  - path: nvidia/When2Call/train_pref        # refusal vs forced-tool-use
+    type: dpo.chat_template
+
+val_set_size: 0.02
+output_dir: ./out/v2-stage25-tooldpo
+
+num_epochs: 1
+micro_batch_size: 1
+gradient_accumulation_steps: 16
+learning_rate: 5.0e-6
+lr_scheduler: constant
+optimizer: adamw_torch_fused
+
+bf16: true
+gradient_checkpointing: true
+flash_attention: true
+
+eval_steps: 100
+save_steps: 200
+save_total_limit: 3
+logging_steps: 10
+
+# This is the FINAL Phase A push — tag as -mvp
+hub_model_id: axentx/surrogate-1-coder-7b-v2-mvp
+hub_strategy: every_save
+push_to_hub: true
+hub_private_repo: false
+
+wandb_project: surrogate-1-v2
+wandb_run_id: stage25-tooldpo
+
+special_tokens:
+  pad_token: <|endoftext|>
+
+resume_from_checkpoint: null
+auto_resume_from_checkpoints: true

@@ -1,0 +1,11 @@
+[Unit]
+Description=axentx Midnight Maintenance — refresh waitlist worker + trigger live re-deploy
+Wants=axentx-midnight-maintenance.timer
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=-/etc/surrogate-coordinator.env
+ExecStart=/bin/bash -c "/opt/surrogate-1-harvest/bin/axentx-deploy-waitlist-worker.sh 2>&1 | tail -10 ; systemctl restart axentx-live-deployer-daemon ; systemctl restart axentx-marketing-burst-daemon"
+StandardOutput=journal
+StandardError=journal

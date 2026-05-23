@@ -1,0 +1,38 @@
+# RSS feeds — one URL per line. Lines starting with # are ignored.
+# Migrated from Mac ~/.claude/bin/crawl-rss.py defaults (script went missing).
+
+# Tech / programming
+https://hnrss.org/frontpage
+https://lobste.rs/rss
+https://martinfowler.com/feed.atom
+https://www.thoughtworks.com/insights.atom
+
+# AI / ML / LLM
+https://huggingface.co/blog/feed.xml
+https://openai.com/blog/rss.xml
+https://blog.langchain.dev/rss/
+https://www.anthropic.com/news/feed.xml
+https://www.deeplearning.ai/the-batch/feed/
+
+# Cloud / DevOps
+https://aws.amazon.com/blogs/aws/feed/
+https://aws.amazon.com/blogs/devops/feed/
+https://aws.amazon.com/blogs/security/feed/
+https://kubernetes.io/feed.xml
+https://www.cncf.io/blog/feed/
+https://blog.cloudflare.com/rss/
+
+# Security
+https://krebsonsecurity.com/feed/
+https://www.schneier.com/feed/atom/
+
+# Product / Startup
+https://www.producthunt.com/feed
+https://news.ycombinator.com/rss
+
+# JS / TS ecosystem
+https://nodejs.org/en/feed/blog.xml
+https://devblogs.microsoft.com/typescript/feed/
+
+# Thai-language sources
+https://www.blognone.com/atom.xml

@@ -1,0 +1,18 @@
+[Unit]
+Description=surrogate state-sync — push runtime context/memory/decisions to git every 5min
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/state-sync-daemon.py
+Restart=always
+RestartSec=15
+MemoryMax=256M
+CPUQuota=20%
+
+[Install]
+WantedBy=multi-user.target

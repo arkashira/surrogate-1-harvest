@@ -1,0 +1,23 @@
+[Unit]
+Description=axentx pipeline-feeder — fills ANY idle stage so no agent is ever idle
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=AXENTX_ROOT=/opt/axentx
+Environment=PIPELINE_FEEDER_POLL_SEC=90
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-pipeline-feeder-daemon.py
+Restart=always
+RestartSec=120
+MemoryMax=192M
+TasksMax=16
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,1104 @@
+#!/usr/bin/env bash
+# `surrogate` — Claude-Code-style CLI
+set -u
+set -a; source "$HOME/.hermes/.env" 2>/dev/null; set +a
+
+# ═══ Colors ═══
+R=$'\033[0m'; D=$'\033[2m'; B=$'\033[1m'
+CY=$'\033[36m'; GR=$'\033[32m'; YE=$'\033[33m'
+MA=$'\033[35m'; RE=$'\033[31m'; GY=$'\033[90m'
+BCY=$'\033[96m'; BMA=$'\033[95m'
+
+# ═══ ~/.surrogate/ init (run once on first launch) ═══
+SURROGATE_HOME="$HOME/.surrogate"
+init_surrogate_home() {
+    mkdir -p "$SURROGATE_HOME"/{sessions,memory,projects,specs,checkpoints,worktrees}
+    # settings.json — like Claude Code's settings
+    if [[ ! -f "$SURROGATE_HOME/settings.json" ]]; then
+        cat > "$SURROGATE_HOME/settings.json" <<'JSON'
+{
+  "model": "auto",
+  "effort": "medium",
+  "maxSteps": 15,
+  "permissionMode": "default",
+  "autoCommit": true,
+  "planDriven": true,
+  "budget": {
+    "dailyMaxUsd": 2.0,
+    "warnAtUsd": 1.5
+  },
+  "agents": ["architect","dev","qa","ops","reviewer"],
+  "memory": {
+    "episodesFile": "~/.surrogate/state/episodes.jsonl",
+    "projectFiles": "~/.surrogate/projects"
+  }
+}
+JSON
+    fi
+    # SURROGATE.md template for new projects
+    if [[ ! -f "$SURROGATE_HOME/SURROGATE.md.template" ]]; then
+        cat > "$SURROGATE_HOME/SURROGATE.md.template" <<'MD'
+# Project Instructions for Surrogate
+
+## Project
+<!-- Brief description of this project -->
+
+## Tech Stack
+<!-- Languages, frameworks, infra -->
+
+## Coding Standards
+<!-- Naming, style, patterns to follow -->
+
+## Key Files
+<!-- Important files the agent should know about -->
+
+## Constraints
+<!-- Things NOT to do, security rules, cost limits -->
+
+## Auto-Dev Plan
+<!-- Tasks for --auto mode. Format: "- [ ] task description" -->
+
+MD
+    fi
+}
+init_surrogate_home
+
+# ═══ Detect SURROGATE.md (like CLAUDE.md) from CWD upward ═══
+find_surrogate_md() {
+    local dir="$1"
+    while [[ "$dir" != "/" && "$dir" != "$HOME" ]]; do
+        if [[ -f "$dir/SURROGATE.md" ]]; then
+            echo "$dir/SURROGATE.md"; return
+        fi
+        dir=$(dirname "$dir")
+    done
+    # Also check home-level
+    [[ -f "$HOME/SURROGATE.md" ]] && echo "$HOME/SURROGATE.md"
+}
+SURROGATE_MD=$(find_surrogate_md "$(pwd)")
+SURROGATE_MD_CONTENT=""
+if [[ -n "$SURROGATE_MD" ]]; then
+    SURROGATE_MD_CONTENT=$(cat "$SURROGATE_MD" 2>/dev/null | head -200)
+fi
+export SURROGATE_MD_CONTENT
+
+# ═══ Default opts ═══
+PROMPT=""
+PRINT_ONLY=0
+MODEL=""
+EFFORT="medium"
+MAX_STEPS=15
+MODE="interactive"
+PERM_MODE="default"    # default | plan | auto | yolo | acceptEdits
+RESUME=""
+WORKTREE=""
+
+# ═══ Args ═══
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -p|--print) PRINT_ONLY=1; MODE="print"; shift ;;
+        --model) MODEL="$2"; shift 2 ;;
+        --effort) EFFORT="$2"; shift 2 ;;
+        --max-steps) MAX_STEPS="$2"; shift 2 ;;
+        -c|--continue) RESUME="last"; shift ;;
+        -r|--resume) RESUME="${2:-last}"; shift 2 ;;
+        --auto|--auto-dev) MODE="auto-dev"; shift ;;
+        --monitor) MODE="monitor"; shift ;;
+        --plan) PERM_MODE="plan"; MODE="plan-mode"; shift ;;
+        --yolo|--bypass-permissions) PERM_MODE="yolo"; shift ;;
+        --accept-edits) PERM_MODE="acceptEdits"; shift ;;
+        --permission-mode) PERM_MODE="$2"; shift 2 ;;
+        --worktree|-w) WORKTREE="${2:-feature}"; shift 2 ;;
+        --status) MODE="status"; shift ;;
+        --agents) MODE="agents"; shift ;;
+        --version|-v) echo "Surrogate-1 v2.2.0 (mirror claude-code 2.2)"; exit 0 ;;
+        -h|--help) MODE="help"; shift ;;
+        init) MODE="init-project"; shift ;;
+        plan)
+            # surrogate plan set <file> | show | clear
+            bash ~/.surrogate/bin/surrogate-daemon.sh plan "$@"
+            exit 0
+            ;;
+        .) shift ;;
+        *)
+            PROMPT="$*"
+            # Preserve mode if already set by an earlier flag (--auto, --plan, --monitor, etc.)
+            if [[ "$MODE" == "interactive" ]] || [[ "$MODE" == "print" ]]; then
+                MODE="print"
+            fi
+            break
+            ;;
+    esac
+done
+
+# ═══ Banner (Claude-style) ═══
+banner() {
+cat <<EOF
+${BCY}${B} ░██████╗██╗░░░██╗██████╗░██████╗░░█████╗░░██████╗░░█████╗░████████╗███████╗${R}
+${BCY}${B} ██╔════╝██║░░░██║██╔══██╗██╔══██╗██╔══██╗██╔════╝░██╔══██╗╚══██╔══╝██╔════╝${R}
+${BCY}${B} ╚█████╗░██║░░░██║██████╔╝██████╔╝██║░░██║██║░░██╗░███████║░░░██║░░░█████╗░░${R}
+${BCY}${B} ░╚═══██╗██║░░░██║██╔══██╗██╔══██╗██║░░██║██║░░╚██╗██╔══██║░░░██║░░░██╔══╝░░${R}
+${BCY}${B} ██████╔╝╚██████╔╝██║░░██║██║░░██║╚█████╔╝╚██████╔╝██║░░██║░░░██║░░░███████╗${R}
+${BCY}${B} ╚═════╝░░╚═════╝░╚═╝░░╚═╝╚═╝░░╚═╝░╚════╝░░╚═════╝░╚═╝░░╚═╝░░░╚═╝░░░╚══════╝${R}
+${D}                          — AI assistant CLI ${MA}● ${GR}v2${D} — ${R}
+
+${D}cwd: ${R}${B}$(pwd)${R}
+${D}mode: ${R}${YE}${PERM_MODE}${R} ${D}| effort: ${R}${YE}$EFFORT${R} ${D}| max_steps: ${R}${YE}$MAX_STEPS${R}
+${D}project: ${R}${GR}${SURROGATE_MD:-"(no SURROGATE.md)"}${R}
+${D}slash commands: ${R}${GR}/help /auto /plan /yolo /mode /status /monitor${R}
+${D}Tab to cycle modes: plan → auto → yolo → default${R}
+EOF
+}
+
+help_text() {
+cat <<EOF
+
+${B}surrogate${R} — Claude-Code-style CLI
+
+${B}Modes:${R}
+  ${GR}surrogate${R}                   interactive REPL (default)
+  ${GR}surrogate "prompt"${R}          one-shot task
+  ${GR}surrogate -p "prompt"${R}       print only
+  ${GR}surrogate --auto              auto-dev — chain architect→dev→qa→reviewer
+  ${GR}surrogate --monitor${R}         daemon — watch cloud/system, auto-fix issues
+  ${GR}surrogate .${R}                 use current directory (default anyway)
+
+${B}Options:${R}
+  ${YE}--model${R} <m>                qwen3-coder|claude-haiku-4.5|gemini-2.5-flash
+  ${YE}--effort${R} <l>               low|medium|high
+  ${YE}--max-steps${R} <n>            tool-loop cap (default 15)
+  ${YE}-c${R}, ${YE}--continue${R}               resume last session
+  ${YE}-r${R}, ${YE}--resume${R} [id]           resume session by id
+  ${YE}-w${R}, ${YE}--worktree${R} [name]       create git worktree for this session
+
+${B}Commands:${R}
+  ${CY}--status${R}                    session + corpus stats
+  ${CY}--agents${R}                    list agents
+  ${CY}--version${R}                   show version
+
+${B}Slash commands (in REPL):${R}
+  /help /status /agents /auto /monitor /clear /model <m>
+  /mcp /plugins /memory /cost
+
+${B}Project (Claude Projects equivalent):${R}
+  ${CY}surrogate init${R}                   create SURROGATE.md for this project
+  ${CY}surrogate plan set plan.md${R}        set active plan → daemon drives tasks from it
+  ${CY}surrogate plan show${R}               show plan progress (✅/🔄/⏳)
+  ${CY}surrogate plan clear${R}              clear active plan
+
+${B}Examples:${R}
+  cd ~/axentx/Vanguard && surrogate "ดู plan แล้วเขียน code ให้จบ"
+  surrogate --auto                  # plan-driven auto: reads ~/.surrogate/active-plan.md
+  surrogate --monitor               # watches logs + self-heals
+  surrogate -c "ต่อที่คุยไว้"       # continue last session
+  surrogate init                    # scaffold SURROGATE.md for this project
+  surrogate plan set TODO.md        # set active plan from markdown checklist
+
+EOF
+}
+
+# ═══ Agent runner (streams tool calls) ═══
+run_agent() {
+    local task="$1"
+    export AGENT_TASK="$task"
+    export AGENT_MAX_STEPS="$MAX_STEPS"
+    export AGENT_MODEL_OVERRIDE="$MODEL"
+    export AGENT_EFFORT="$EFFORT"
+    export AGENT_CWD="$(pwd)"
+
+    python3 <<'PYEOF'
+import os, sys, json, re, sqlite3, subprocess, urllib.request, urllib.error, time
+from datetime import datetime
+from pathlib import Path
+
+C = {'R':'\033[0m','D':'\033[2m','B':'\033[1m',
+     'C':'\033[36m','G':'\033[32m','Y':'\033[33m',
+     'M':'\033[35m','RED':'\033[31m','GRAY':'\033[90m'}
+
+TASK = os.environ['AGENT_TASK']
+MAX_STEPS = int(os.environ['AGENT_MAX_STEPS'])
+MODEL_OVERRIDE = os.environ.get('AGENT_MODEL_OVERRIDE','')
+CWD = os.environ.get('AGENT_CWD', '.')
+OR_KEY = os.environ.get('OPENROUTER_API_KEY','')
+GEMINI = os.environ.get('GEMINI_API_KEY','')
+GEMINI2 = os.environ.get('GEMINI_API_KEY_2','')
+GH_POOL = [t.strip() for t in os.environ.get('GITHUB_TOKEN_POOL','').split(',') if t.strip()]
+
+MEM_DIR = Path(os.path.expanduser('~/.surrogate/state'))
+MEM_DIR.mkdir(parents=True, exist_ok=True)
+EPISODES = MEM_DIR / 'episodes.jsonl'
+
+sys_prompt_path = Path(os.path.expanduser('~/axentx/surrogate/system-prompt.md'))
+SYS_PROMPT = sys_prompt_path.read_text()[:10000] if sys_prompt_path.exists() else ''
+
+# Inject SURROGATE.md (project-level instructions, like Claude Projects)
+surrogate_md = os.environ.get('SURROGATE_MD_CONTENT', '')
+if surrogate_md.strip():
+    SYS_PROMPT += f'\n\n## Project Instructions (SURROGATE.md)\n{surrogate_md[:3000]}'
+
+# ═══ Tools ═══
+def tool_bash(cmd, timeout=60, cwd=None):
+    try:
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout, cwd=cwd or CWD)
+        return {'stdout': r.stdout[:5000], 'stderr': r.stderr[:1500], 'rc': r.returncode}
+    except Exception as e: return {'error': str(e)}
+
+def tool_read(path, limit=2000, offset=0):
+    try:
+        p = Path(os.path.expanduser(path)).resolve()
+        if not p.exists(): p = (Path(CWD)/path).resolve()
+        if p.is_dir(): return {'items': [f.name for f in sorted(p.iterdir())][:80]}
+        lines = p.read_text(errors='replace').splitlines()
+        return {'path':str(p), 'content':'\n'.join(lines[offset:offset+limit])[:20000], 'total_lines':len(lines)}
+    except Exception as e: return {'error':str(e)}
+
+def tool_write(path, content):
+    try:
+        p = Path(os.path.expanduser(path)) if path.startswith(('/','~')) else Path(CWD)/path
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content)
+        return {'path':str(p),'bytes':len(content),'ok':True}
+    except Exception as e: return {'error':str(e)}
+
+def tool_edit(path, old_string, new_string):
+    try:
+        p = Path(os.path.expanduser(path)) if path.startswith(('/','~')) else Path(CWD)/path
+        t = p.read_text()
+        if old_string not in t: return {'error':'old_string not found'}
+        if t.count(old_string)>1: return {'error':f'ambiguous ({t.count(old_string)})'}
+        p.write_text(t.replace(old_string,new_string,1))
+        return {'path':str(p),'ok':True}
+    except Exception as e: return {'error':str(e)}
+
+def tool_glob(pattern, path=None):
+    import glob as gl
+    base = os.path.expanduser(path) if path else CWD
+    m = gl.glob(os.path.join(base,pattern), recursive=True)[:100]
+    return {'count':len(m), 'matches':m}
+
+def tool_grep(pattern, path=None, glob='*'):
+    base = os.path.expanduser(path) if path else CWD
+    cmd = f"grep -rn --include='{glob}' -E {subprocess.list2cmdline([pattern])} {base} 2>/dev/null | head -40"
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
+    return {'matches': r.stdout[:5000]}
+
+def tool_rag_query(query, limit=5):
+    try:
+        conn = sqlite3.connect(os.path.expanduser('~/.surrogate/index.db'))
+        kw = ' '.join(w for w in re.sub(r'[^a-zA-Z0-9ก-๙ ]',' ',query.lower()).split() if len(w)>2)[:200]
+        rows = conn.execute("SELECT d.source, d.path, substr(d.response,1,500) FROM docs_fts f JOIN docs d ON d.id=f.rowid WHERE f.docs_fts MATCH ? ORDER BY bm25(docs_fts) LIMIT ?", (kw,limit)).fetchall()
+        conn.close()
+        return {'results':[{'source':s,'path':p or '','text':b[:400]} for s,p,b in rows]}
+    except Exception as e: return {'error':str(e)}
+
+TOOLS = {'bash':tool_bash,'read':tool_read,'write':tool_write,'edit':tool_edit,
+         'glob':tool_glob,'grep':tool_grep,'rag_query':tool_rag_query}
+
+def render_call(name, args):
+    a = ', '.join(f'{k}={json.dumps(v,ensure_ascii=False)[:40]}' for k,v in args.items())
+    return f"{C['C']}●{C['R']} {C['B']}{name}{C['R']}({C['GRAY']}{a}{C['R']})"
+
+def render_result(r):
+    if 'error' in r: return f"  {C['RED']}⎿ err: {str(r['error'])[:120]}{C['R']}"
+    if 'content' in r: return f"  {C['GRAY']}⎿ Read {r.get('total_lines',0)} lines{C['R']}"
+    if r.get('ok'): return f"  {C['G']}⎿ Wrote {r.get('bytes','?')} bytes → {r.get('path','')}{C['R']}"
+    if 'matches' in r:
+        if isinstance(r['matches'],list): return f"  {C['GRAY']}⎿ {r.get('count',len(r['matches']))} match(es){C['R']}"
+        return f"  {C['GRAY']}⎿ {r['matches'].count(chr(10))} grep match(es){C['R']}"
+    if 'results' in r: return f"  {C['GRAY']}⎿ {len(r['results'])} hit(s){C['R']}"
+    if 'stdout' in r:
+        prev = r['stdout'].strip().split('\n')[0][:100] if r['stdout'].strip() else '(empty)'
+        return f"  {C['GRAY']}⎿ rc={r['rc']} — {prev}{C['R']}"
+    if 'items' in r: return f"  {C['GRAY']}⎿ {len(r['items'])} items{C['R']}"
+    return f"  {C['GRAY']}⎿ ok{C['R']}"
+
+# ═══ LLM ladder ═══
+def to_gemini(msgs):
+    contents, sys_txt = [], ''
+    for m in msgs:
+        if m['role']=='system': sys_txt = m['content']
+        else: contents.append({'role':'user' if m['role']=='user' else 'model','parts':[{'text':m['content']}]})
+    if sys_txt and contents and contents[0]['role']=='user':
+        contents[0]['parts'][0]['text'] = sys_txt + '\n\n---\n\n' + contents[0]['parts'][0]['text']
+    return contents
+
+def llm(messages):
+    def try_gem(k, m='gemini-2.5-flash'):
+        url = f'https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={k}'
+        body = {'contents':to_gemini(messages),'generationConfig':{'temperature':0.2,'maxOutputTokens':3000}}
+        req = urllib.request.Request(url,data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+        with urllib.request.urlopen(req,timeout=90) as r:
+            return json.load(r)['candidates'][0]['content']['parts'][0]['text']
+    def try_oai(url, model, key):
+        body = {'model':model,'messages':messages,'temperature':0.2,'max_tokens':3000,'stream':False}
+        headers = {'Content-Type':'application/json','Authorization':f'Bearer {key}'}
+        if 'openrouter' in url: headers.update({'HTTP-Referer':'https://axentx.ai','X-Title':'Surrogate-1'})
+        req = urllib.request.Request(url,data=json.dumps(body).encode(),headers=headers)
+        with urllib.request.urlopen(req,timeout=90) as r:
+            return json.load(r)['choices'][0]['message']['content']
+
+    def try_ollama(model='surrogate-1'):
+        # Local Ollama fallback — last resort when ALL cloud providers fail.
+        body = {'model':model,'messages':messages,'temperature':0.2,'max_tokens':3000,'stream':False,'keep_alive':'5m'}
+        req = urllib.request.Request('http://localhost:11434/v1/chat/completions',
+            data=json.dumps(body).encode(),
+            headers={'Content-Type':'application/json'})
+        with urllib.request.urlopen(req,timeout=180) as r:
+            return json.load(r)['choices'][0]['message']['content']
+
+    def try_hf_hermes():
+        # Delegate to Hermes brain on HF Space — runs full orchestration there.
+        # Requires HF_HERMES_URL env (default: axentx/surrogate-1 public endpoint)
+        url = os.environ.get('HF_HERMES_URL', os.environ.get('CURSOR_SERVICE_URL', 'https://surrogate-1-cursor.ashira.workers.dev')) + '/chat'
+        # Build a single user prompt from messages (HF endpoint expects flat prompt)
+        user_msg = next((m['content'] for m in reversed(messages) if m['role']=='user'), '')
+        sys_msg = next((m['content'] for m in messages if m['role']=='system'), '')
+        prompt = f"{sys_msg}\n\n---\n\n{user_msg}" if sys_msg else user_msg
+        body = {'prompt': prompt[:8000], 'max_steps': MAX_STEPS, 'timeout_sec': 180}
+        req = urllib.request.Request(url, data=json.dumps(body).encode(),
+            headers={'Content-Type': 'application/json'})
+        with urllib.request.urlopen(req, timeout=200) as r:
+            d = json.load(r)
+            return d.get('response') or '(no response from HF Hermes)'
+
+    ladder = []
+    # Primary: Hermes brain on HF Space — uses full orchestration (cloud ladder + local + RAG)
+    # Set USE_HF_HERMES=0 to disable this rung
+    if os.environ.get('USE_HF_HERMES', '1') == '1':
+        ladder.append(('hf-hermes', lambda: try_hf_hermes()))
+    if GEMINI: ladder.append(('gemini',lambda: try_gem(GEMINI)))
+    if GEMINI2: ladder.append(('gemini2',lambda: try_gem(GEMINI2)))
+    if OR_KEY:
+        for m in ['qwen/qwen3-coder','anthropic/claude-haiku-4.5','qwen/qwen3-235b-a22b-2507','google/gemini-2.5-flash']:
+            ladder.append((f'or:{m}',lambda m=m: try_oai('https://openrouter.ai/api/v1/chat/completions',m,OR_KEY)))
+    for t in GH_POOL[:4]:
+        ladder.append(('gh-models',lambda t=t: try_oai('https://models.github.ai/inference/chat/completions','openai/gpt-4o-mini',t)))
+    # Final fallback: local Ollama (only if installed locally)
+    ladder.append(('ollama:surrogate-1', lambda: try_ollama('surrogate-1')))
+    ladder.append(('ollama:gemma4:e4b', lambda: try_ollama('gemma4:e4b')))
+    if MODEL_OVERRIDE and OR_KEY:
+        ladder.insert(0,('override',lambda: try_oai('https://openrouter.ai/api/v1/chat/completions',MODEL_OVERRIDE,OR_KEY)))
+    errs = []
+    for name, fn in ladder:
+        try: return fn()
+        except Exception as e:
+            errs.append(f"{name}:{type(e).__name__}")
+            continue
+    raise RuntimeError(f"providers exhausted ({len(ladder)}); errors: {','.join(errs[:5])}")
+
+def enforce_male(t):
+    for p, r in [('ดิฉัน','ผม'),(r'ฉัน(?![a-zA-Z])','ผม'),('ค่ะ','ครับ'),('นะคะ','นะครับ'),('คะ','ครับ'),('จ้า','ครับ')]:
+        t = re.sub(p, r, t)
+    return t
+
+# ═══ Loop ═══
+agent_sys = SYS_PROMPT + f"""
+
+## Tool-use
+Use tools autonomously — DON'T tell user to run commands.
+Tools: bash, read, write, edit, glob, grep, rag_query.
+Call exactly 1 tool per turn via:
+```tool
+{{"name":"...","args":{{"...":"..."}}}}
+```
+Final answer = plain text (no tool block).
+
+CWD: {CWD}
+Max steps: {MAX_STEPS}
+"""
+messages = [
+    {'role':'system','content':agent_sys},
+    {'role':'user','content':TASK}
+]
+print(f"{C['GRAY']}⏺ thinking...{C['R']}",flush=True)
+step, final = 0, None
+while step < MAX_STEPS:
+    step += 1
+    try: resp = llm(messages)
+    except Exception as e:
+        print(f"{C['RED']}✗ {e}{C['R']}"); break
+    resp = enforce_male(resp)
+    tm = re.search(r'```tool\s*\n(.+?)\n```', resp, re.DOTALL)
+    if not tm:
+        final = resp; print(); print(resp)
+        try:
+            with open(EPISODES,'a') as f:
+                f.write(json.dumps({'ts':datetime.utcnow().isoformat(),'task':TASK[:500],'steps':step,'final':resp[:3000]},ensure_ascii=False)+'\n')
+        except: pass
+        break
+    try:
+        call = json.loads(tm.group(1))
+        name, args = call['name'], call.get('args',{})
+    except Exception as e:
+        print(f"{C['RED']}⚠ bad tool JSON{C['R']}"); break
+    if name not in TOOLS:
+        print(f"{C['RED']}⚠ unknown tool: {name}{C['R']}")
+        messages.append({'role':'assistant','content':resp})
+        messages.append({'role':'user','content':f'[error] tool {name} unknown'})
+        continue
+    print(render_call(name,args))
+    try: result = TOOLS[name](**args)
+    except Exception as e: result = {'error':str(e)}
+    print(render_result(result))
+    messages.append({'role':'assistant','content':resp})
+    messages.append({'role':'user','content':f'[tool:{name}]\n{json.dumps(result,ensure_ascii=False)[:3000]}'})
+if final is None:
+    print(f"\n{C['Y']}⚠ max_steps reached{C['R']}")
+PYEOF
+}
+
+# ═══ Slash commands registry (Claude Code parity) ═══
+slash_help() {
+    cat <<EOF
+${B}Slash commands${R} (พิมพ์ ${CY}/${R} แล้ว Tab autocomplete):
+
+  ${CY}/help${R}                 show this help
+  ${CY}/status${R}               session + corpus stats
+  ${CY}/agents${R}               list available agents
+  ${CY}/clear${R}                clear screen + redraw banner
+  ${CY}/exit${R} | ${CY}/quit${R}          end session
+
+${B}Modes${R}:
+  ${CY}/auto${R} [task]          AUTO-DEV pipeline (architect→dev→qa→reviewer)
+  ${CY}/plan${R} [task]          architect only — produce plan, no code changes
+  ${CY}/yolo${R} <task>          execute without permission gates
+  ${CY}/mode${R} <m>             set permission mode: plan|auto|yolo|default|acceptEdits
+
+${B}Project${R}:
+  ${CY}/init${R}                 scaffold SURROGATE.md in cwd
+  ${CY}/plan-set${R} <file>      set active plan (markdown checklist)
+  ${CY}/plan-show${R}            show plan progress (✅/⏳)
+  ${CY}/plan-clear${R}           clear active plan
+
+${B}Configuration${R}:
+  ${CY}/model${R} <name>         override LLM (qwen3-coder | claude-haiku-4.5 | ...)
+  ${CY}/effort${R} <l>           set effort: low | medium | high
+  ${CY}/cwd${R} <path>           change working directory
+
+${B}Diagnostics${R}:
+  ${CY}/memory${R}               show ~/.surrogate/state/
+  ${CY}/cost${R}                 OpenRouter usage today
+  ${CY}/cost-all${R}              all provider usage breakdown
+  ${CY}/health${R}               check HF endpoint + local CLI status
+  ${CY}/monitor${R}               watch logs + system load (background)
+  ${CY}/history${R}                last 20 prompts you ran
+  ${CY}/context${R}                show full session context (cwd, mode, git, etc.)
+  ${CY}/undo${R}                   restore last surrogate checkpoint (git stash/reset)
+
+${B}Hermes brain${R} (axentx/surrogate-1):
+  ${CY}/remote${R} <task>        force route via HF Space (override local)
+  ${CY}/local${R} <task>          force local-only (skip HF)
+
+${B}Tips${R}:
+  • Type any non-/ text → sends as task to Surrogate-1
+  • Tab key → cycle modes (plan → auto → yolo → default)
+  • Ctrl+C → cancel current step
+EOF
+}
+
+# ═══ Status line — show every prompt (cost, mode, model, project) ═══
+print_statusline() {
+    local cost_str=""
+    if [[ -n "${OR_KEY:-${OPENROUTER_API_KEY:-}}" ]]; then
+        # Cached cost lookup — fetch once per minute
+        local cache=~/.surrogate/.cost-cache
+        if [[ ! -f "$cache" ]] || [[ $(($(date +%s) - $(stat -f %m "$cache" 2>/dev/null || stat -c %Y "$cache" 2>/dev/null || echo 0))) -gt 60 ]]; then
+            (curl -sS -m 5 -H "Authorization: Bearer ${OPENROUTER_API_KEY:-${OR_KEY:-}}" \
+                https://openrouter.ai/api/v1/auth/key 2>/dev/null \
+                | python3 -c "import json,sys; d=json.load(sys.stdin).get('data',{}); print(f'\$OR={d.get(\"usage\",0):.3f}')" \
+                > "$cache") 2>/dev/null &
+        fi
+        cost_str=$(cat "$cache" 2>/dev/null | head -1)
+    fi
+    local proj_short=""
+    [[ -n "$SURROGATE_MD" ]] && proj_short="📁 $(basename "$(dirname "$SURROGATE_MD")") "
+    local model_short="${MODEL:-auto}"
+    local hf_brain="${USE_HF_HERMES:-1}"
+    local hf_str="🌐 HF" ; [[ "$hf_brain" == "0" ]] && hf_str="💻 local"
+    echo "${D}─── ${proj_short}${YE}${PERM_MODE}${R}${D} · ${MA}${model_short}${R}${D} · ${hf_str}${R}${D} · ${cost_str:-\$?} ───${R}"
+}
+
+# ═══ History persistence ═══
+HISTORY_FILE="$SURROGATE_HOME/history.jsonl"
+mkdir -p "$(dirname "$HISTORY_FILE")"
+save_history() {
+    local prompt="$1"
+    python3 -c "
+import json, sys, time
+from pathlib import Path
+Path('$HISTORY_FILE').parent.mkdir(parents=True, exist_ok=True)
+with open('$HISTORY_FILE', 'a') as f:
+    f.write(json.dumps({'ts': time.time(), 'cwd': '$(pwd)', 'prompt': '''$prompt'''[:500]}, ensure_ascii=False) + '\n')
+" 2>/dev/null
+}
+
+# ═══ REPL ═══
+repl() {
+    banner
+    echo ""
+    echo "${D}Type ${CY}/help${R}${D} for commands · ${CY}/exit${R}${D} to quit · plain text = task to Surrogate-1${R}"
+    echo ""
+    while true; do
+        print_statusline
+        # Show project + mode in prompt (Claude-Code style)
+        local prompt_proj="${SURROGATE_MD:+$(basename $(dirname "$SURROGATE_MD"))}"
+        local prompt_str="${B}${BMA}▶${R}"
+        [[ -n "$prompt_proj" ]] && prompt_str="${B}${BMA}[${prompt_proj}]${R} ${prompt_str}"
+        echo -en "$prompt_str "
+        if ! IFS= read -r line; then echo ""; break; fi
+        line="${line#"${line%%[![:space:]]*}"}"   # ltrim
+        [[ -z "$line" ]] && continue
+
+        # Persist to history (skip for /exit and /clear)
+        case "$line" in /exit|/quit|exit|quit|/clear) ;; *) save_history "$line" ;; esac
+
+        case "$line" in
+            /exit|/quit|exit|quit) break ;;
+            /help|/?) slash_help ;;
+            /status) bash "$0" --status ;;
+            /clear) clear; banner; echo "" ;;
+            /agents) bash "$0" --agents ;;
+            /init) init_project ;;
+            /health)
+                echo "${B}HF endpoint:${R}"
+                curl -sS -m 8 "${CURSOR_SERVICE_URL:-https://surrogate-1-cursor.ashira.workers.dev}/health" 2>&1 | head -3
+                echo "${B}Local CLI:${R} ${GR}✓${R} surrogate v$(grep '"Surrogate-1' "$0" | head -1 | grep -oE 'v[0-9.]+')"
+                ;;
+            /auto|/auto-dev)
+                TASK=$(echo "$line" | sed 's|^/[a-z-]* *||')
+                [[ -n "$TASK" ]] && bash "$0" --auto-dev "$TASK" || bash "$0" --auto-dev
+                ;;
+            /plan-set*)
+                F=$(echo "$line" | awk '{print $2}')
+                bash "$0" plan set "$F"
+                ;;
+            /plan-show)  bash "$0" plan show ;;
+            /plan-clear) bash "$0" plan clear ;;
+            /plan*)
+                TASK=$(echo "$line" | sed 's|^/plan *||')
+                bash "$0" --plan -p "$TASK"
+                ;;
+            /yolo*)
+                TASK=$(echo "$line" | sed 's|^/yolo *||')
+                PERM_MODE=yolo run_agent "$TASK"
+                ;;
+            /monitor) echo "${YE}→ monitor mode...${R}"; bash "$0" --monitor & ;;
+            /model*)
+                NEW=$(echo "$line" | awk '{print $2}')
+                MODEL="$NEW"; echo "${GR}✓ model → $NEW${R}"
+                ;;
+            /effort*)
+                NEW=$(echo "$line" | awk '{print $2}')
+                case "$NEW" in
+                    low|medium|high) EFFORT="$NEW"; echo "${GR}✓ effort → $NEW${R}" ;;
+                    *) echo "${GY}valid: low | medium | high${R}" ;;
+                esac
+                ;;
+            /cwd*)
+                NEW=$(echo "$line" | awk '{print $2}')
+                cd "$NEW" 2>/dev/null && echo "${GR}✓ cwd → $(pwd)${R}" || echo "${RE}cd failed${R}"
+                ;;
+            /mode*)
+                NEW=$(echo "$line" | awk '{print $2}')
+                case "$NEW" in
+                    plan|auto|yolo|default|acceptEdits) PERM_MODE="$NEW"; echo "${GR}✓ mode → $NEW${R}" ;;
+                    *) echo "${GY}valid: plan | auto | yolo | default | acceptEdits${R}" ;;
+                esac
+                ;;
+            /memory) ls -lh ~/.surrogate/state/ 2>&1 | head -10 ;;
+            /undo)
+                # Restore last checkpoint (git stash if uncommitted changes from last task)
+                if git -C "$(pwd)" rev-parse --git-dir &>/dev/null; then
+                    LAST_STASH=$(git -C "$(pwd)" stash list 2>/dev/null | grep "surrogate-checkpoint" | head -1)
+                    if [[ -n "$LAST_STASH" ]]; then
+                        STASH_REF=$(echo "$LAST_STASH" | cut -d: -f1)
+                        echo "${YE}▸ Restoring: $LAST_STASH${R}"
+                        git -C "$(pwd)" stash pop "$STASH_REF" 2>&1 | head -10
+                    else
+                        # Try undoing last commit (if surrogate-auto)
+                        LAST_COMMIT=$(git -C "$(pwd)" log -1 --format='%s' 2>/dev/null)
+                        if echo "$LAST_COMMIT" | grep -qiE "surrogate|auto-dev|hermes"; then
+                            echo "${YE}▸ Undoing last commit: $LAST_COMMIT${R}"
+                            git -C "$(pwd)" reset --soft HEAD~1 2>&1 | tail -3
+                        else
+                            echo "${GY}  no surrogate checkpoint to undo (last commit: $LAST_COMMIT)${R}"
+                        fi
+                    fi
+                else
+                    echo "${RE}  not a git repo — /undo requires git${R}"
+                fi
+                ;;
+            /history)
+                if [[ -f "$HISTORY_FILE" ]]; then
+                    python3 -c "
+import json
+from pathlib import Path
+import time
+lines = Path('$HISTORY_FILE').read_text().splitlines()[-20:]
+for l in lines:
+    try:
+        d = json.loads(l)
+        age_min = int((time.time() - d.get('ts', 0)) / 60)
+        print(f\"  [{age_min:>4}m ago] {d.get('prompt','')[:100]}\")
+    except: pass
+"
+                else
+                    echo "${GY}  no history yet${R}"
+                fi
+                ;;
+            /context)
+                echo "${B}Active context${R}"
+                echo "  cwd:        $(pwd)"
+                echo "  project:    ${SURROGATE_MD:-(none)}"
+                echo "  mode:       ${PERM_MODE}"
+                echo "  model:      ${MODEL:-auto}"
+                echo "  effort:     ${EFFORT}"
+                echo "  HF brain:   ${USE_HF_HERMES:-1} (1=route via HF Space, 0=local-only)"
+                echo "  history:    $(wc -l < "$HISTORY_FILE" 2>/dev/null || echo 0) commands"
+                if [[ -d ".git" ]]; then
+                    echo "  git branch: $(git branch --show-current 2>/dev/null)"
+                    echo "  git status: $(git status --short 2>/dev/null | wc -l | tr -d ' ') changed files"
+                fi
+                ;;
+            /cost)
+                bash -c 'source ~/.hermes/.env; curl -s -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/auth/key' 2>&1 | python3 -c "import json,sys; d=json.load(sys.stdin).get('data',{}); print(f'  OpenRouter: \${d.get(\"usage\",0):.4f}')"
+                ;;
+            /cost-all) bash "$0" --status ;;
+            /remote*)
+                TASK=$(echo "$line" | sed 's|^/remote *||')
+                USE_HF_HERMES=1 run_agent "$TASK"
+                ;;
+            /local*)
+                TASK=$(echo "$line" | sed 's|^/local *||')
+                USE_HF_HERMES=0 run_agent "$TASK"
+                ;;
+            /*) echo "${GY}unknown: $line — try ${CY}/help${GY}${R}" ;;
+            *)  run_agent "$line" ;;
+        esac
+        echo ""
+    done
+    echo "${D}session ended${R}"
+}
+
+# ═══ Init project — interactive PRD wizard → surrogate.md → auto-dev ═══
+init_project() {
+    local target="$(pwd)/surrogate.md"
+    local upper="$(pwd)/SURROGATE.md"
+    [[ -f "$upper" && ! -f "$target" ]] && target="$upper"
+
+    if [[ -f "$target" ]]; then
+        echo "${YE}⚠ ${target} already exists${R}"
+        echo -en "Overwrite? [y/N] "; read -r ans
+        [[ "$ans" != "y" && "$ans" != "Y" ]] && exit 0
+    fi
+
+    clear
+    banner
+    echo ""
+    echo "${B}${BCY}╭─ Surrogate-1 PRD Wizard ──────────────────╮${R}"
+    echo "${B}${BCY}│${R} ผมจะถาม 8 คำถามแบบ batch — ตอบทีเดียว"
+    echo "${B}${BCY}│${R} แล้วผมจะ generate ${CY}surrogate.md${R} (PRD ฉบับสมบูรณ์)"
+    echo "${B}${BCY}│${R} ตามด้วย ${CY}auto-dev${R} → SA → architect → dev → QA → reviewer"
+    echo "${B}${BCY}│${R} TDD + DDD + design patterns enforced"
+    echo "${B}${BCY}╰────────────────────────────────────────────╯${R}"
+    echo ""
+
+    # ── Q&A ──────────────────────────────────────────────────────────────────
+    echo "${B}1. Project name${R} (e.g. costinel-cost-anomaly):"
+    read -rp "  > " Q_NAME
+    echo ""
+    echo "${B}2. One-line description${R} (what does it do? for whom?):"
+    read -rp "  > " Q_DESC
+    echo ""
+    echo "${B}3. Tech stack${R} (any language/framework/infra — e.g. \"Go + Postgres + K8s\", \"Next.js + Supabase\", \"AWS CDK + Lambda\", \"existing repo: Java Spring\"):"
+    read -rp "  > " Q_STACK
+    echo ""
+    echo "${B}4. Architecture style${R} [hex|ddd|mvc|micro|mono] (default: ddd):"
+    read -rp "  > " Q_ARCH
+    Q_ARCH="${Q_ARCH:-ddd}"
+    echo ""
+    echo "${B}5. Top features${R} (one per line, blank line to end):"
+    Q_FEATURES=""
+    while true; do
+        read -rp "  - " feat
+        [[ -z "$feat" ]] && break
+        Q_FEATURES+="- $feat"$'\n'
+    done
+    echo ""
+    echo "${B}6. Test strategy${R} [tdd|heavy|smoke|none] (default: tdd):"
+    read -rp "  > " Q_TEST
+    Q_TEST="${Q_TEST:-tdd}"
+    echo ""
+    echo "${B}7. Constraints${R} (security/performance/compliance/cost — comma-sep):"
+    read -rp "  > " Q_CONSTRAINTS
+    echo ""
+    echo "${B}8. Target users / business context${R} (1-2 sentences):"
+    read -rp "  > " Q_USERS
+    echo ""
+
+    # ── Step A: web research the tech keywords (free, fast, grounds the PRD) ─
+    echo "${MA}▶ Researching tech context...${R}"
+    local research_md=""
+    research_md=$(python3 - "$Q_STACK $Q_DESC $Q_FEATURES" <<'PYEOF' 2>/dev/null
+import sys, urllib.request, urllib.parse, re
+text = sys.argv[1]
+# Extract candidate tech keywords (CamelCase, lowercase known stacks, version tags)
+kws = re.findall(r'\b[A-Z][a-zA-Z0-9]{2,}\b|\b[a-z][a-z0-9-]{3,}\b', text)
+stop = {'this','that','from','with','into','what','when','where','description','project','features','users','stack',
+        'architecture','test','strategy','constraints','context'}
+kws = [k for k in kws if k.lower() not in stop and len(k) > 3]
+kws = list(dict.fromkeys(kws))[:4]
+if not kws:
+    sys.exit(0)
+q = ' '.join(kws) + ' best practices architecture 2025'
+try:
+    req = urllib.request.Request(f"https://duckduckgo.com/html/?q={urllib.parse.quote(q)}",
+        headers={'User-Agent':'Mozilla/5.0'})
+    html = urllib.request.urlopen(req, timeout=12).read().decode('utf-8', errors='ignore')
+    snippets = re.findall(r'class="result__snippet"[^>]*>([^<]+)<', html)[:5]
+    if snippets:
+        print(f"\n## Research context ({', '.join(kws)})")
+        for s in snippets:
+            print(f"- {re.sub(r'<[^>]+>','',s).strip()[:300]}")
+except Exception:
+    pass
+PYEOF
+)
+    [[ -n "$research_md" ]] && echo "${D}  ${research_md}${R}" | head -3
+
+    # ── Step B: build PRD prompt (research-grounded) ─────────────────────────
+    echo ""
+    echo "${YE}▶ Generating ${target}...${R}"
+    local prompt="You are an elite product/architecture strategist. Generate a COMPLETE, professional surrogate.md (PRD + ADRs + plan) based on these inputs:
+
+# Project: $Q_NAME
+- Description: $Q_DESC
+- Stack: $Q_STACK
+- Architecture style: $Q_ARCH
+- Test strategy: $Q_TEST
+- Constraints: $Q_CONSTRAINTS
+- Users/context: $Q_USERS
+- Features:
+$Q_FEATURES
+${research_md}
+
+Output structure (markdown):
+
+## Project
+<one-paragraph summary>
+
+## Vision & Mission
+
+## Tech Stack
+<expand from input — adapt to chosen language/runtime; include lib versions where relevant, infra services, observability stack>
+
+## Architecture
+<chosen style with rationale. Diagram in mermaid if applicable.>
+
+## Domain Model
+<DDD: bounded contexts, entities, aggregates, value objects, repositories — derived from features>
+
+## Coding Standards
+- $Q_TEST: test-first if tdd, one assertion per test, factory fixtures
+- $Q_ARCH design patterns enforced (Repository, Factory, Strategy, Builder where appropriate)
+- Type-strict in chosen language (TS strict / Python type hints / Go generics / Rust traits)
+- Result/Either over throws for expected errors
+- Naming: intent-revealing, units in names (retryDelayMs)
+
+## Key Files (initial structure)
+<file tree with one-line purpose for each>
+
+## Constraints (non-negotiable)
+<from input>
+
+## Architecture Decision Records
+- ADR-001: <auto-generate from architecture choice>
+- ADR-002: <auto-generate from test strategy>
+- ADR-003: <auto-generate from one constraint>
+
+## Auto-Dev Plan
+- [ ] task description (atomic, ~30 min each, dev → QA → reviewer)
+<break each feature into 3–7 tasks. Format strictly: '- [ ] <verb> <object>'>
+
+## Test Strategy
+<test pyramid breakdown for $Q_TEST>
+
+## Definition of Done
+- All tasks checked + reviewed
+- Tests passing (target coverage)
+- Docs updated
+- ADRs reflect actual implementation
+
+Output ONLY the markdown, no preamble. Adapt to the actual stack the user chose — never default to Python unless they said Python."
+
+    # ── Step C: direct LLM call (curl), bypassing the agent tool-loop ──
+    local prd=""
+    if [[ -n "${GEMINI_API_KEY:-}" ]]; then
+        prd=$(python3 - "$prompt" "$GEMINI_API_KEY" <<'PYEOF' 2>/dev/null
+import sys, json, urllib.request
+prompt, key = sys.argv[1], sys.argv[2]
+url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
+body = {"contents":[{"parts":[{"text":prompt}]}],
+        "generationConfig":{"temperature":0.3,"maxOutputTokens":8192}}
+req = urllib.request.Request(url, data=json.dumps(body).encode(),
+    headers={"Content-Type":"application/json"})
+try:
+    with urllib.request.urlopen(req, timeout=120) as r:
+        d = json.load(r)
+        print(d["candidates"][0]["content"]["parts"][0]["text"])
+except Exception as e:
+    print(f"GEMINI_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
+PYEOF
+)
+    fi
+    if [[ -z "$prd" ]] || [[ ${#prd} -lt 400 ]]; then
+        if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
+            prd=$(python3 - "$prompt" "$OPENROUTER_API_KEY" <<'PYEOF' 2>/dev/null
+import sys, json, urllib.request
+prompt, key = sys.argv[1], sys.argv[2]
+body = {"model":"qwen/qwen3-coter","messages":[{"role":"user","content":prompt}],
+        "temperature":0.3,"max_tokens":8000}
+# Fix model id typo
+body["model"] = "qwen/qwen3-coder"
+req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions",
+    data=json.dumps(body).encode(),
+    headers={"Content-Type":"application/json","Authorization":f"Bearer {key}",
+             "HTTP-Referer":"https://axentx.ai","X-Title":"Surrogate-1"})
+try:
+    with urllib.request.urlopen(req, timeout=120) as r:
+        d = json.load(r)
+        print(d["choices"][0]["message"]["content"])
+except Exception as e:
+    print(f"OR_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
+PYEOF
+)
+        fi
+    fi
+
+    # Strip stray code-fences if model wrapped output
+    prd=$(echo "$prd" | sed -E '/^```markdown\s*$/d; /^```\s*$/d')
+
+    if [[ -z "$prd" ]] || [[ ${#prd} -lt 400 ]]; then
+        echo "${RE}❌ PRD generation failed (Gemini + OpenRouter both empty/short). Falling back to template.${R}"
+        cp "$SURROGATE_HOME/SURROGATE.md.template" "$target"
+    else
+        echo "$prd" > "$target"
+        # ── Step D: push PRD as training pair (HF dataset feedback loop) ───
+        python3 - "$prompt" "$prd" <<'PYEOF' 2>/dev/null &
+import sys, json, time, os
+from pathlib import Path
+log = Path.home() / '.surrogate' / 'training-pairs.jsonl'
+log.parent.mkdir(parents=True, exist_ok=True)
+with open(log, 'a') as f:
+    f.write(json.dumps({
+        'ts': time.time(),
+        'source': 'prd-wizard',
+        'cwd': os.getcwd(),
+        'prompt': sys.argv[1][:8000],
+        'response': sys.argv[2][:12000],
+        'messages': [
+            {'role':'user','content':sys.argv[1][:8000]},
+            {'role':'assistant','content':sys.argv[2][:12000]},
+        ],
+    }, ensure_ascii=False) + '\n')
+PYEOF
+    fi
+
+    echo ""
+    echo "${GR}${B}✅ PRD created: ${target}${R}"
+    echo ""
+    echo "${B}Preview:${R}"
+    head -30 "$target" | sed 's/^/  /'
+    echo "${D}  ... ($(wc -l < "$target") lines total)${R}"
+    echo ""
+    echo "${B}Next step:${R}"
+    echo "  ${CY}surrogate plan set ${target}${R}    # set as active plan"
+    echo "  ${CY}surrogate --auto${R}                # start auto-dev pipeline (SA → architect → dev → QA → reviewer)"
+    echo ""
+    echo -en "${B}Run auto-dev now? [Y/n]${R} "
+    read -r START_NOW
+    if [[ "$START_NOW" != "n" && "$START_NOW" != "N" ]]; then
+        bash "$0" plan set "$target"
+        echo ""
+        echo "${GR}▶ Starting auto-dev pipeline...${R}"
+        bash "$0" --auto
+    fi
+}
+
+# ═══ Auto-Dev mode — plan-driven or interactive ═══
+auto_dev_mode() {
+    local task="${1:-}"
+
+    # Check for active plan first (plan-driven, no interactive prompt needed)
+    PLAN_FILE="$SURROGATE_HOME/active-plan.md"
+    if [[ -z "$task" && -f "$PLAN_FILE" ]]; then
+        PENDING=$(grep -c '^\- \[ \]' "$PLAN_FILE" 2>/dev/null || echo 0)
+        DONE=$(grep -c '^\- \[x\]' "$PLAN_FILE" 2>/dev/null || echo 0)
+        echo "${B}${GR}▶ AUTO-DEV MODE (plan-driven)${R}"
+        echo "${D}  Plan: $PLAN_FILE  ✅ done=$DONE  ⏳ pending=$PENDING${R}"
+        echo "${D}  Pipeline: architect → dev → qa → reviewer  |  Ctrl+C to stop${R}"
+        echo ""
+        # Drive tasks from plan until all done
+        while true; do
+            # Pop next pending task from plan
+            NEXT_TASK=$(python3 <<'PYEOF'
+import sys, re
+from pathlib import Path
+plan_file = Path.home() / '.surrogate' / 'active-plan.md'
+if not plan_file.exists(): sys.exit(0)
+text = plan_file.read_text()
+match = re.search(r'^- \[ \] (.+)', text, re.MULTILINE)
+if not match: sys.exit(0)
+task_text = match.group(1).strip()
+# Mark in-progress
+new_text = text.replace(f'- [ ] {task_text}', f'- [~] {task_text}', 1)
+plan_file.write_text(new_text)
+print(task_text)
+PYEOF
+)
+            [[ -z "$NEXT_TASK" ]] && { echo "${GR}✅ Plan complete — all tasks done!${R}"; break; }
+            echo "${BCY}${B}▸ Next task:${R} $NEXT_TASK"
+            bash ~/.surrogate/bin/surrogate-orchestrate.sh "$NEXT_TASK"
+            # Mark done in plan
+            python3 <<PYEOF
+from pathlib import Path
+plan_file = Path.home() / '.surrogate' / 'active-plan.md'
+if plan_file.exists():
+    text = plan_file.read_text()
+    plan_file.write_text(text.replace(f'- [~] $NEXT_TASK', f'- [x] $NEXT_TASK', 1))
+PYEOF
+            echo ""
+        done
+        return
+    fi
+
+    # No plan — interactive or one-shot
+    if [[ -z "$task" ]]; then
+        echo "${B}${GR}▶ AUTO-DEV MODE${R}"
+        echo "${D}  Pipeline: architect → dev → qa → ops? → reviewer${R}"
+        echo "${D}  Tip: 'surrogate plan set <file>' for plan-driven automation${R}"
+        echo "${D}  Type task, or /exit to quit${R}"
+        echo ""
+        while true; do
+            echo -en "${B}${BMA}▶ auto-dev >${R} "
+            if ! IFS= read -r line; then echo ""; break; fi
+            [[ -z "$line" ]] && continue
+            [[ "$line" == "/exit" || "$line" == "exit" ]] && break
+            bash ~/.surrogate/bin/surrogate-orchestrate.sh "$line"
+            echo ""
+        done
+    else
+        bash ~/.surrogate/bin/surrogate-orchestrate.sh "$task"
+    fi
+}
+
+# ═══ Plan mode — architect only (no code changes) ═══
+plan_mode() {
+    local task="${1:-}"
+    if [[ -z "$task" ]]; then
+        echo -en "${B}${YE}▶ plan >${R} "
+        read -r task
+    fi
+    bash ~/.surrogate/bin/surrogate-orchestrate.sh --mode plan "$task"
+}
+
+# ═══ Monitor mode (watch cloud/logs, auto-fix) ═══
+monitor_mode() {
+    echo "${B}${MA}▶ MONITOR MODE${R}"
+    echo "${D}  Watching ~/.surrogate/logs/, ~/.hermes/workspace/healer/, system load.${R}"
+    echo "${D}  Ctrl+C to stop.${R}"
+    echo ""
+    ITER=0
+    while true; do
+        ITER=$((ITER+1))
+        clear
+        banner
+        echo "${B}▶ MONITOR #$ITER @ $(date +%H:%M:%S)${R}"
+        echo ""
+        # System health
+        LOAD=$(uptime | awk -F'load averages:' '{print $2}' | awk '{print $1}')
+        FREE=$(vm_stat | awk '/Pages free/{gsub("[.]","",$3); printf "%d", ($3*16384)/1048576}')
+        echo "${B}system${R}  load=$LOAD  free=${FREE}MB"
+        # Daemon
+        PROCS=$(pgrep -cf "surrogate-daemon\|github-domain-scrape\|domain-scrape-loop" 2>/dev/null)
+        echo "${B}daemon${R}  procs=$PROCS"
+        # Recent healer fires
+        echo "${B}healer${R}  last 3 actions:"
+        ls -t ~/.hermes/workspace/healer/*.md 2>/dev/null | head -3 | awk '{print "  " $0}' | xargs -I{} basename {} 2>/dev/null | sed 's/^/  /'
+        # Training + graph
+        PAIRS=$(wc -l ~/axentx/surrogate/data/training-jsonl/*.jsonl 2>/dev/null | tail -1 | awk '{print $1}')
+        REPOS=$(sqlite3 ~/.surrogate/state/scrape-ledger.db "SELECT COUNT(*) FROM scraped" 2>/dev/null)
+        echo "${B}data${R}    pairs=$PAIRS  repos=$REPOS"
+        # Recent errors in logs (auto-heal trigger)
+        ERR_COUNT=$(tail -200 ~/.surrogate/logs/*.log 2>/dev/null | grep -cE "ERROR|Fatal|CRITICAL|429|403|500" || echo 0)
+        echo "${B}errors${R}  last 200 log lines: $ERR_COUNT"
+        # If critical → spawn agent to investigate
+        if [[ $ERR_COUNT -gt 50 ]]; then
+            echo "${RE}⚠ elevated errors — dispatching investigator agent${R}"
+            (run_agent "เช็ค ~/.surrogate/logs/ หา pattern error ที่ recur บ่อย และเสนอ fix list (ห้ามแก้เอง รายงานอย่างเดียว)" 2>&1 | head -20) &
+        fi
+        sleep 30
+    done
+}
+
+# ═══ Status ═══
+show_status() {
+    banner
+    echo ""
+    REPOS=$(sqlite3 ~/.surrogate/state/scrape-ledger.db "SELECT COUNT(*) FROM scraped" 2>/dev/null || echo "?")
+    PAIRS=$(wc -l ~/axentx/surrogate/data/training-jsonl/*.jsonl 2>/dev/null | tail -1 | awk '{print $1}' || echo "?")
+    EP=$(wc -l ~/.surrogate/state/episodes.jsonl 2>/dev/null | awk '{print $1}' || echo "0")
+    PLAN_FILE="$SURROGATE_HOME/active-plan.md"
+    echo "${B}▸ Session${R}"
+    echo "  cwd:            ${GR}$(pwd)${R}"
+    echo "  project:        ${GR}${SURROGATE_MD:-"(no SURROGATE.md)"}${R}"
+    echo "  episodes:       ${GR}${EP}${R}"
+    if [[ -f "$PLAN_FILE" ]]; then
+        DONE=$(grep -c '^\- \[x\]' "$PLAN_FILE" 2>/dev/null || echo 0)
+        PENDING=$(grep -c '^\- \[ \]' "$PLAN_FILE" 2>/dev/null || echo 0)
+        echo "  active plan:    ${GR}✅ done=$DONE  ⏳ pending=$PENDING${R}"
+    else
+        echo "  active plan:    ${GY}none${R}"
+    fi
+    echo ""
+    echo "${B}▸ Corpus${R}"
+    echo "  training pairs: ${GR}${PAIRS}${R}"
+    echo "  scraped repos:  ${GR}${REPOS}${R}"
+}
+
+show_agents() {
+    banner
+    echo ""
+    echo "${B}▸ Available agents (~/.surrogate/agents/)${R}"
+    ls ~/.surrogate/agents/*.md 2>/dev/null | sed 's|.*/||;s|.md$||' | sed 's/^/  /'
+}
+
+# ═══ Dispatch ═══
+case "$MODE" in
+    help) help_text ;;
+    status) show_status ;;
+    agents) show_agents ;;
+    auto-dev) auto_dev_mode "$PROMPT" ;;
+    monitor) monitor_mode ;;
+    init-project) init_project ;;
+    plan-mode)
+        # --plan flag + task = architect only
+        if [[ -n "$PROMPT" ]]; then plan_mode "$PROMPT"
+        else
+            # No task — show plan status
+            bash ~/.surrogate/bin/surrogate-daemon.sh plan show
+        fi
+        ;;
+    print)
+        if [[ "$PERM_MODE" == "yolo" ]]; then run_agent "$PROMPT"
+        else run_agent "$PROMPT"
+        fi
+        ;;
+    interactive)
+        if [[ -n "$WORKTREE" ]]; then
+            git worktree add "$SURROGATE_HOME/worktrees/$WORKTREE" 2>/dev/null
+            cd "$SURROGATE_HOME/worktrees/$WORKTREE" 2>/dev/null || true
+        fi
+        repl
+        ;;
+esac

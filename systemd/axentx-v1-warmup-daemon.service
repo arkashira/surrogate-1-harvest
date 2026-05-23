@@ -1,0 +1,20 @@
+[Unit]
+Description=axentx Surrogate-1 v1 warm-up — keeps HF ZeroGPU Space awake every 10min
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-v1-warmup-daemon.py
+Restart=always
+RestartSec=20
+MemoryMax=64M
+TasksMax=8
+
+[Install]
+WantedBy=multi-user.target

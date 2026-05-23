@@ -1,0 +1,23 @@
+# ROADMAP-100 #19 — wrangler config for dependency-update Worker.
+#
+# Deploy:
+#   cd dep-update-worker && wrangler deploy
+# Set the GH PAT (one-time):
+#   cd dep-update-worker && wrangler secret put GH_PAT
+name = "surrogate-1-dep-update"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+account_id = "77fb5e6c3716be794dc3e8467ba9f285"
+
+# Weekly: Monday 03:30 UTC
+[triggers]
+crons = ["30 3 * * 1"]
+
+# Allow manual trigger via GET /run for spot debugging.
+# No bindings — only fetch() to api.github.com / pypi.org / registry.npmjs.org.
+
+[vars]
+DRY_RUN = "0"
+
+# Optional: override default repo list at runtime
+# REPOS = '["axentx/Costinel","axentx/vanguard","axentx/airship","axentx/workio","axentx/axiomops","axentx/surrogate-1","arkashira/surrogate-1-harvest"]'

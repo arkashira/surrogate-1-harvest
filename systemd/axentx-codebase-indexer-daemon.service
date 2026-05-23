@@ -1,0 +1,23 @@
+[Unit]
+Description=axentx codebase-indexer — reads each project's source + writes ground-truth to shared_knowledge
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=AXENTX_ROOT=/opt/axentx
+Environment=CODEBASE_INDEXER_POLL_SEC=3600
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-codebase-indexer-daemon.py
+Restart=always
+RestartSec=300
+MemoryMax=256M
+TasksMax=16
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

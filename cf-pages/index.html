@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>surrogate-1 — autonomous AI dev fleet</title>
+  <meta name="description" content="surrogate-1 is an autonomous fleet of code-writing AI agents running 24/7 across HF Spaces, GCP, and Cloudflare. Live status, dashboards, and API.">
+  <meta name="theme-color" content="#0b0e14">
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --panel: #11151d;
+      --line: #232a36;
+      --fg: #e6e8eb;
+      --muted: #8a93a3;
+      --accent: #5cc8ff;
+      --ok: #4ade80;
+      --warn: #fbbf24;
+      --bad: #f87171;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      color: var(--fg);
+      background: var(--bg);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 48px 24px; }
+    nav { display: flex; gap: 18px; align-items: center; margin-bottom: 56px; }
+    .logo { font-weight: 700; letter-spacing: -0.02em; font-size: 17px; }
+    .logo-mark { color: var(--accent); }
+    nav a { color: var(--muted); text-decoration: none; font-size: 14px; }
+    nav a:hover { color: var(--fg); }
+    nav .spacer { flex: 1; }
+    h1 {
+      font-size: clamp(34px, 6vw, 54px);
+      line-height: 1.05;
+      letter-spacing: -0.025em;
+      margin: 0 0 18px;
+      font-weight: 700;
+    }
+    h1 .accent { color: var(--accent); }
+    .lede {
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 640px;
+      margin: 0 0 36px;
+    }
+    .cta { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 64px; }
+    .btn {
+      display: inline-block;
+      padding: 11px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      text-decoration: none;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: var(--accent); color: #052033; }
+    .btn-primary:hover { background: #82d6ff; }
+    .btn-secondary { background: transparent; color: var(--fg); border-color: var(--line); }
+    .btn-secondary:hover { border-color: var(--muted); }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 56px;
+    }
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 18px;
+    }
+    .stat-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-top: 6px;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+    }
+    .stat-value.placeholder { color: var(--muted); }
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .feat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+    .feat h3 { margin: 0 0 6px; font-size: 16px; }
+    .feat p { margin: 0; color: var(--muted); font-size: 14px; }
+    footer {
+      margin-top: 80px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--fg); }
+    code { font: 13px ui-monospace, "SF Mono", monospace; background: var(--panel); padding: 2px 6px; border-radius: 4px; color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <span class="logo"><span class="logo-mark">⬢</span>&nbsp;surrogate-1</span>
+      <span class="spacer"></span>
+      <a href="https://surrogate-1-cursor.ashira.workers.dev/dash">dashboard</a>
+      <a href="/status.html">status</a>
+      <a href="/pricing.html">pricing</a>
+      <a href="https://github.com/axentx/surrogate-1">github</a>
+    </nav>
+
+    <h1>An autonomous <span class="accent">AI dev fleet</span> that ships code 24/7.</h1>
+    <p class="lede">
+      surrogate-1 is a constellation of code-writing agents running across
+      HuggingFace Spaces, GCP, and Cloudflare — coordinated by a cursor
+      service, trained continuously on production traces, and observable
+      end-to-end.
+    </p>
+
+    <div class="cta">
+      <a class="btn btn-primary" href="https://surrogate-1-cursor.ashira.workers.dev/dash">Live dashboard</a>
+      <a class="btn btn-secondary" href="/status.html">System status</a>
+      <a class="btn btn-secondary" href="https://github.com/axentx/surrogate-1">Source code</a>
+    </div>
+
+    <div class="stats" id="stats">
+      <div class="stat"><div class="stat-label">Total requests</div><div class="stat-value placeholder" data-metric="total">—</div></div>
+      <div class="stat"><div class="stat-label">Cursor advances</div><div class="stat-value placeholder" data-metric="advances">—</div></div>
+      <div class="stat"><div class="stat-label">AI inferences</div><div class="stat-value placeholder" data-metric="ai">—</div></div>
+      <div class="stat"><div class="stat-label">Canary success</div><div class="stat-value placeholder" data-metric="canary">—</div></div>
+    </div>
+
+    <div class="features">
+      <div class="feat">
+        <h3>Cursor service</h3>
+        <p>D1-backed dataset cursor: advance, exhaust, audit. Replaces filesystem state on ephemeral Spaces.</p>
+      </div>
+      <div class="feat">
+        <h3>Health probes</h3>
+        <p>Cron pings six Spaces every 5 min. <code>space_health</code> table feeds the public status page.</p>
+      </div>
+      <div class="feat">
+        <h3>End-to-end canary</h3>
+        <p>Every 15 min: read cursor → advance → read-back → audit. Failures roll up to <code>canary_runs</code>.</p>
+      </div>
+      <div class="feat">
+        <h3>Distributed tracing</h3>
+        <p>Every request gets a <code>trace_id</code>. Spans visualized as a Gantt at <code>/dash/trace/&lt;id&gt;</code>.</p>
+      </div>
+      <div class="feat">
+        <h3>Immutable audit log</h3>
+        <p>D1 triggers prevent UPDATE/DELETE on <code>audit_log</code>. Append-only by design.</p>
+      </div>
+      <div class="feat">
+        <h3>Backups to HF Hub</h3>
+        <p>One-call dump of all D1 tables to <code>axentx/surrogate-1-backups</code>. Triggered by <code>/admin/backup</code>.</p>
+      </div>
+    </div>
+
+    <footer>
+      <span>© 2026 axentx</span>
+      <a href="/status.html">status</a>
+      <a href="/pricing.html">pricing</a>
+      <a href="https://surrogate-1-cursor.ashira.workers.dev/metrics">metrics</a>
+      <span>built on Cloudflare Workers · D1 · KV</span>
+    </footer>
+  </div>
+
+  <script>
+    // Pull live counters from the Worker /metrics endpoint (Prometheus text format)
+    const WORKER = "https://surrogate-1-cursor.ashira.workers.dev";
+    fetch(WORKER + "/metrics", { mode: "cors" })
+      .then(r => r.text())
+      .then(text => {
+        const counters = {};
+        for (const line of text.split("\n")) {
+          const m = line.match(/^surrogate_cursor_requests\{key="([^"]+)"\} (\d+)/);
+          if (m) counters[m[1]] = parseInt(m[2]);
+        }
+        const total = Object.entries(counters)
+          .filter(([k]) => k.startsWith("req:"))
+          .reduce((a, [, v]) => a + v, 0);
+        const advances = counters["req:advance"] || 0;
+        const ai = Object.entries(counters)
+          .filter(([k]) => k.startsWith("ai:"))
+          .reduce((a, [, v]) => a + v, 0);
+        const canaryOk = counters["canary:ok"] || 0;
+        const canaryFail = counters["canary:fail"] || 0;
+        const canaryTotal = canaryOk + canaryFail;
+        const canaryPct = canaryTotal ? ((canaryOk / canaryTotal) * 100).toFixed(0) + "%" : "—";
+
+        const set = (k, v) => {
+          const el = document.querySelector(`[data-metric="${k}"]`);
+          if (el) {
+            el.textContent = typeof v === "number" ? v.toLocaleString() : v;
+            el.classList.remove("placeholder");
+          }
+        };
+        set("total", total);
+        set("advances", advances);
+        set("ai", ai);
+        set("canary", canaryPct);
+      })
+      .catch(() => { /* leave placeholders */ });
+  </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+[Unit]
+Description=axentx Uptime Monitor — health check live URLs + status page
+After=network-online.target axentx-live-deployer-daemon.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=-/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=UPTIME_CYCLE_SEC=300
+ExecStart=/usr/bin/python3 /opt/surrogate-1-harvest/bin/axentx-uptime-monitor-daemon.py
+Restart=on-failure
+RestartSec=15
+MemoryMax=192M
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

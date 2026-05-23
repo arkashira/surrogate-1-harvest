@@ -1,0 +1,11 @@
+[Unit]
+Description=axentx kamatera-terminator — fires hourly, runs the auto-terminate check
+
+[Timer]
+# 5 min after boot to let things settle, then every hour.
+OnBootSec=5min
+OnUnitActiveSec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

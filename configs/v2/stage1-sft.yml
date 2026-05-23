@@ -1,0 +1,140 @@
+# Surrogate-1 v2 — Stage 1: Code SFT 3 epochs at 16K context
+# Run: axolotl train configs/v2/stage1-sft.yml
+# Compute: ~30-36 hr on Lightning H200 141GB (72B QLoRA needs more)
+
+base_model: Qwen/Qwen2.5-72B-Instruct
+# Upgraded 2026-04-30 (7B → 32B → 72B). User feedback: 32B too small for
+# the data scale we have (~921M pairs / ~736B tokens raw, ~5-50M pairs
+# after dedup). 72B dense gives 2.25× capacity to absorb broader knowledge.
+#
+# Compute fit on Lightning H200 141GB:
+#   72B base 4-bit NF4   ≈ 36 GB
+#   LoRA r=64 DoRA bf16  ≈ 1.2 GB
+#   activations + grads (seq=16K, batch=1) ≈ 60-80 GB
+#   optimizer (8-bit AdamW) ≈ 8 GB
+#   ── total ≈ 105-125 GB on 141 GB H200 → fits with headroom.
+# (32B previously fit at seq=32K; 72B requires seq=16K to stay in budget.)
+#
+# v1 LoRA (7B) and v2-32B drafts are incompatible — v2 LoRA from this
+# stage is 72B-native, served via vLLM on Lightning AI / Modal endpoint.
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
+trust_remote_code: true
+
+# 4-bit quantization
+load_in_4bit: true
+strict: false
+
+# LoRA config — all-linear + DoRA + r=64 (per Round 1+2 research)
+adapter: lora
+lora_r: 64
+lora_alpha: 128
+lora_dropout: 0.05
+peft_use_dora: true              # +5-10% over plain LoRA
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+# Context: train at 16K (72B QLoRA tight on H200 141GB), serve at 64K
+# via YaRN ×4 — Qwen2.5-72B native is 32K, but training context is what
+# anchors LoRA's positional behavior, so going beyond 16K at train risks
+# OOM. Inference can extend without retraining.
+sequence_len: 16384
+sample_packing: true
+pad_to_sequence_len: true
+rope_theta: 1000000.0
+rope_scaling:
+  type: yarn
+  factor: 4.0
+  original_max_position_embeddings: 32768
+
+# Datasets — 5 sharded public-merged repos populated by dataset-enrich.sh
+# (training-pairs + pairs-A/B/C/D, ~5,800+ commits, millions of {prompt,response}
+# pairs growing every ~25-65s). v2-train was the original "curated" SFT target
+# but build-data-pipeline.sh is not wired into cron yet, so it stayed at 0 files.
+# Until that's wired, train on the live raw-harvest repos so SFT actually has data.
+datasets:
+  - path: axentx/surrogate-1-training-pairs
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
+  - path: axentx/surrogate-1-pairs-A
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
+  - path: axentx/surrogate-1-pairs-B
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
+  - path: axentx/surrogate-1-pairs-C
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
+  - path: axentx/surrogate-1-pairs-D
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
+
+# Validation split
+val_set_size: 0.02
+output_dir: ./out/v2-stage1-sft
+
+# Training hyperparams (72B-tuned)
+num_epochs: 3                                # was 1 in v1
+micro_batch_size: 1                          # tight at 16K on 72B
+gradient_accumulation_steps: 32              # effective batch = 32 (was 16 on 32B)
+learning_rate: 7.0e-5                        # 72B prefers lower LR vs 32B
+lr_scheduler: cosine
+warmup_ratio: 0.03
+optimizer: adamw_torch_fused
+weight_decay: 0.01
+max_grad_norm: 1.0
+
+# Memory tricks
+bf16: true
+fp16: false
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+flash_attention: true                        # FA3 on H100+, FA2 on L40S
+liger_kernel: true                           # 30-40% memory reduction
+neftune_noise_alpha: 5                       # NEFTune noise injection (small lift)
+
+# Eval
+eval_steps: 200
+save_steps: 200
+save_total_limit: 3
+logging_steps: 10
+
+# Hub push
+hub_model_id: axentx/surrogate-1-coder-72b-v2-sft
+hub_strategy: every_save
+push_to_hub: true
+hub_private_repo: false
+
+# Wandb (optional)
+wandb_project: surrogate-1-v2
+wandb_run_id: stage1-sft
+
+# Special tokens (Hermes XML for tool use stages later)
+special_tokens:
+  pad_token: <|endoftext|>
+
+# Resume from checkpoint
+resume_from_checkpoint: null
+auto_resume_from_checkpoints: true

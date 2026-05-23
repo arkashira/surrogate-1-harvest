@@ -1,0 +1,24 @@
+[Unit]
+Description=axentx feature-synthesizer — keeps dev queue fed when discovery is dry
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=FEATURE_SYNTH_POLL_SEC=600
+Environment=DEV_QUEUE_TARGET=30
+Environment=DEV_QUEUE_HARD_CAP=100
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-feature-synthesizer-daemon.py
+Restart=always
+RestartSec=120
+MemoryMax=192M
+TasksMax=16
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

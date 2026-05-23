@@ -1,0 +1,12 @@
+[Unit]
+Description=axentx kamatera-terminator — kills Kamatera VM at promo day 28 (one-shot, fired by timer)
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /opt/surrogate-1-harvest/bin/axentx-kamatera-terminator.py
+StandardOutput=journal
+StandardError=journal

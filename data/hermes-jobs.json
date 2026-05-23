@@ -1,0 +1,6099 @@
+{
+  "jobs": [
+    {
+      "id": "6e1d017814ae",
+      "name": "morning-digest",
+      "prompt": "Morning briefing: 1) Run: bash ~/.claude/bin/graph-query.sh hubs \u2014 read the output. 2) Check ~/.hermes/workspace/interests/ for latest trends in DevOps, AI agents, AWS, and platform engineering. 3) Give Ashira 5-8 bullet points of what's most relevant today for the thinkbit CDK project and axentx startup. 4) If anything new learned, append to ~/.claude/memory/lessons_learned.md and run ~/.claude/bin/graph-sync.sh",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8 * * 1-5",
+        "display": "0 8 * * 1-5"
+      },
+      "schedule_display": "0 8 * * 1-5",
+      "repeat": {
+        "times": null,
+        "completed": 3
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-20T19:08:30.429626+07:00",
+      "next_run_at": "2026-04-28T08:00:00+07:00",
+      "last_run_at": "2026-04-24T08:01:30.136326+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903622",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "0ba02e9f6f6e",
+      "name": "github-ops-scrape",
+      "prompt": "Run GitHub Ops scrape pipeline:\nterminal: bash ~/.claude/bin/scrape-github-ops.sh\nThen report: how many new repos indexed today (tail -3 ~/.claude/logs/scrape-github-ops.log).",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 3,15 * * *",
+        "display": "0 3,15 * * *"
+      },
+      "schedule_display": "0 3,15 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 7
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-21T21:03:07.680310+07:00",
+      "next_run_at": "2026-04-28T03:00:00+07:00",
+      "last_run_at": "2026-04-27T15:08:22.047716+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903634",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "a5d8d38f1d8a",
+      "name": "axentx-unified",
+      "prompt": "TEAM LEAD \u2014 delegate first. 4 turns total.\n\nTURN 1 \u2014 terminal: bash /Users/Ashira/.hermes/scripts/axentx-dev-loop.sh\n  Capture CYCLE_ID, PROJECT, PATH, FOCUS from output. Ignore any warnings in output.\n\nTURN 2 \u2014 delegate_task in ONE batch with 3 workers matching FOCUS:\n  discovery \u2192 B4-Market-Research, B1-SA, B6-Design-Thinking\n  design    \u2192 D1-UX-Designer, D2-UI-Designer, D3-Usability-Tester\n  backend   \u2192 E1-Backend, E10-AI-Engineer, A1-Solutions-Architect\n  frontend  \u2192 E2-Frontend, D2-UI-Designer, E4-Full-Stack\n  quality   \u2192 Q2-QE-Quality-Engineer, S1-AppSec, E9-Performance\n  ops       \u2192 O1-DevOps, O2-SRE, DOC-TechWriter\n\n  Each worker prompt:\n  \"\"\"\n  Project <NAME> at <PATH>. Role <ROLE>. Focus <FOCUS>. Cycle <CYCLE_ID>.\n\n  Execute in order:\n  1. session_search q=\"<ROLE> <FOCUS> <NAME>\"\n  2. memory retrieve tag=<NAME>\n  3. terminal: ls /Users/Ashira/.hermes/workspace/swarm-shared/decisions/ | tail -5 && for f in $(ls -t /Users/Ashira/.hermes/workspace/swarm-shared/decisions/ 2>/dev/null | head -2); do echo \"=== $f ===\"; cat /Users/Ashira/.hermes/workspace/swarm-shared/decisions/$f; done\n  4. Do real work: write code in <PATH> OR structured analysis markdown\n  5. terminal: cat > /Users/Ashira/.hermes/workspace/swarm-shared/decisions/<CYCLE_ID>_<ROLE>.md <<EOF\n  <your summary + decisions + next-step>\n  EOF\n  6. memory store tag=<NAME> content=<key decision>\n  7. skill_manage: if you spotted a reusable pattern, create skill. If none, skip.\n\n  Return 3-sentence summary.\n  \"\"\"\n\nTURN 3 \u2014 moa tool: pass 3 worker outputs as inputs, synthesize consensus. Save to memory tag=<PROJECT>.\n\nTURN 4 \u2014 terminal: bash /Users/Ashira/.claude/bin/axentx-auto-commit.sh && echo \"cycle done <CYCLE_ID>\" >> /Users/Ashira/.hermes/workspace/swarm-shared/past-cycles/index.log\n\nIf ANY tool errors: log to terminal, skip that step, continue. Never stop mid-pipeline.\nNever claim script failed \u2014 always continue to TURN 2.\n",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "axentx-dev-loop.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/15 * * * *",
+        "display": "*/15 * * * *"
+      },
+      "schedule_display": "*/15 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 1
+      },
+      "enabled": false,
+      "state": "scheduled",
+      "paused_at": "2026-04-21T22:48:45.702270",
+      "paused_reason": "replaced by staggered-pipeline",
+      "created_at": "2026-04-21T22:12:21.122055+07:00",
+      "next_run_at": "2026-04-21T22:35:59.166616+07:00",
+      "last_run_at": "2026-04-21T22:16:04.703132+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903635",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "ccfd12679f70",
+      "name": "pipe-b4-research",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "nvidia/nemotron-3-super-120b-a12b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0,15,30,45 * * * *",
+        "display": "0,15,30,45 * * * *"
+      },
+      "schedule_display": "0,15,30,45 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 191
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:48:45.702303+07:00",
+      "next_run_at": "2026-04-28T00:15:00+07:00",
+      "last_run_at": "2026-04-27T20:08:05.322460+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-27T13:50:12.768787",
+      "prompt": "\nSTEP 0 (RAG priming): terminal: python3 ~/.claude/bin/ask-sqlite.py \"<domain keywords for your task>\" --source domain:ai-engineering 2>/dev/null | head -40\nThen incorporate 1-2 specific patterns from retrieved excerpts into your output (cite by file path).\n\n3 turns max.\n1. terminal: bash ~/.hermes/scripts/pipeline-helper.sh b4\n2. web_search (query=\"<PROJECT domain> 2026 market trend forecast\") \u2014 get top 3 results.\n3. terminal: append 1 line to backlog.jsonl with {\"source\":\"b4\",\"project\":\"<PROJECT>\",\"item\":\"<concrete feature>\",\"signal\":\"<cite source>\"} + memory append {tag:<PROJECT>, content: \"<market signal summary>\"}.\nOutput: 1-line summary with 1 key signal.",
+      "enabled_toolsets": [
+        "terminal",
+        "web",
+        "memory"
+      ]
+    },
+    {
+      "id": "69ea3e1c6b72",
+      "name": "pipe-b1a1-spec",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "nvidia/nemotron-3-super-120b-a12b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "3,18,33,48 * * * *",
+        "display": "3,18,33,48 * * * *"
+      },
+      "schedule_display": "3,18,33,48 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 186
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:48:45.702313+07:00",
+      "next_run_at": "2026-04-28T00:18:00+07:00",
+      "last_run_at": "2026-04-27T17:44:28.603660+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-27T13:50:12.768868",
+      "prompt": "STEP -1 (past work): session_search q=\"<feature> spec\" \u2192 avoid duplicate specs\n\nSTEP 0 (RAG priming): terminal: python3 ~/.claude/bin/ask-sqlite.py \"<domain keywords for your task>\" --source domain:arch-patterns 2>/dev/null | head -40\nThen incorporate 1-2 specific patterns from retrieved excerpts into your output (cite by file path).\n\n3 turns max.\n1. terminal: bash ~/.hermes/scripts/pipeline-helper.sh b1a1\n2. terminal: tail -5 ~/.hermes/workspace/swarm-shared/backlog.jsonl; grep -c status=\\\"raw\\\" ~/.hermes/workspace/swarm-shared/backlog.jsonl || true\n3. terminal: pick the latest raw item, create ~/.hermes/workspace/swarm-shared/backlog/$RUN_ID_spec.md with 5 lines: Problem/User/Solution/Acceptance/Risks.\nN-1. memory (action=\"append\", target=\"memory\", content=\"<PROJECT>/<role>: key decision this run\")\nN. skill_manage (if reusable pattern spotted \u2014 else skip): create skill for the pattern\nOutput: spec file path.",
+      "enabled_toolsets": [
+        "file",
+        "memory",
+        "terminal",
+        "session_search",
+        "skills"
+      ]
+    },
+    {
+      "id": "a6caa6725dcc",
+      "name": "pipe-pm-priority",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "nvidia/nemotron-3-super-120b-a12b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "6,21,36,51 * * * *",
+        "display": "6,21,36,51 * * * *"
+      },
+      "schedule_display": "6,21,36,51 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 192
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:48:45.702320+07:00",
+      "next_run_at": "2026-04-28T00:21:00+07:00",
+      "last_run_at": "2026-04-27T18:11:45.376232+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-27T13:50:12.768912",
+      "prompt": "3 turns max.\n1. terminal: bash ~/.hermes/scripts/pipeline-helper.sh pm\n2. terminal: cat ~/.hermes/workspace/swarm-shared/priority.json; tail -10 ~/.hermes/workspace/swarm-shared/backlog.jsonl\n3. terminal: write ~/.hermes/workspace/swarm-shared/priority.json with top 3 ranked priorities (Costinel/Vanguard/arkship > surrogate > workio). Include assignee role (E1/E2/E10).\nN-1. memory (action=\"append\", target=\"memory\", content=\"<PROJECT>/<role>: key decision this run\")\nN. skill_manage (if reusable pattern spotted \u2014 else skip): create skill for the pattern\nOutput: 1 line with top priority id.",
+      "enabled_toolsets": [
+        "terminal",
+        "file",
+        "memory",
+        "session_search"
+      ]
+    },
+    {
+      "id": "899226e8d7c1",
+      "name": "pipe-dev",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "qwen/qwen3-coder:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.hermes/scripts/dev-orchestrator.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "9,24,39,54 * * * *",
+        "display": "9,24,39,54 * * * *"
+      },
+      "schedule_display": "9,24,39,54 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 186
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:48:45.702325+07:00",
+      "next_run_at": "2026-04-28T00:09:00+07:00",
+      "last_run_at": "2026-04-27T20:46:16.736031+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318227",
+      "prompt": "[SILENT]",
+      "enabled_toolsets": []
+    },
+    {
+      "id": "e8347db44119",
+      "name": "pipe-qa",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "nvidia/nemotron-nano-9b-v2:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "12,27,42,57 * * * *",
+        "display": "12,27,42,57 * * * *"
+      },
+      "schedule_display": "12,27,42,57 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 193
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:48:45.702328+07:00",
+      "next_run_at": "2026-04-28T00:12:00+07:00",
+      "last_run_at": "2026-04-27T20:04:16.118316+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-27T13:50:12.769019",
+      "prompt": "\nSTEP -2 (repo structure): cat ~/.hermes/workspace/swarm-shared/repo-maps/<PROJECT>_map.md | head -60 \u2014 know dirs + symbols before writing code\n\nSTEP 0 (RAG priming): terminal: python3 ~/.claude/bin/ask-sqlite.py \"<keywords for your task>\" --source domain:qa-testing 2>/dev/null | head -40\nThen cite 1-2 specific patterns from retrieved excerpts.\n\n3 turns max.\n1. terminal: bash ~/.hermes/scripts/pipeline-helper.sh qa\n2. terminal: ls -t ~/.hermes/workspace/swarm-shared/decisions/*_dev.md | head -1 | xargs cat; cd $PROJECT_PATH && git diff HEAD~1 --stat 2>/dev/null\n3. terminal: if tests exist (package.json/pyproject.toml with test script): run them. Write ~/.hermes/workspace/swarm-shared/decisions/$RUN_ID_qa.md with {dev_run_id, passed:bool, findings:[...]}.\nN-1. memory (action=\"append\", target=\"memory\", content=\"<PROJECT>/<role>: key decision this run\")\nN. skill_manage (if reusable pattern spotted \u2014 else skip): create skill for the pattern\nOutput: pass/fail.",
+      "enabled_toolsets": [
+        "terminal",
+        "file",
+        "memory",
+        "skills"
+      ]
+    },
+    {
+      "id": "3532fe504cb5",
+      "name": "pipe-hr-monitor",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "openai/gpt-oss-20b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "14,29,44,59 * * * *",
+        "display": "14,29,44,59 * * * *"
+      },
+      "schedule_display": "14,29,44,59 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 198
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:48:45.702332+07:00",
+      "next_run_at": "2026-04-28T00:14:00+07:00",
+      "last_run_at": "2026-04-27T20:05:44.778238+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903655",
+      "prompt": "3 turns max.\n1. terminal: bash ~/.hermes/scripts/pipeline-helper.sh hr\n2. terminal: python3 ~/.hermes/scripts/model-scorecard.py unblock && python3 ~/.hermes/scripts/model-scorecard.py score\n3. terminal: python3 ~/.hermes/scripts/model-scorecard.py swap\nOutput: 1-line summary: agents scored, swaps applied, cooldowns.",
+      "enabled_toolsets": [
+        "terminal"
+      ],
+      "disabled_toolsets": [
+        "browser",
+        "web",
+        "skills",
+        "memory",
+        "delegation",
+        "moa",
+        "session_search",
+        "code_execution"
+      ]
+    },
+    {
+      "id": "71782ba0bbfc",
+      "name": "pipe-sprint-plan",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "claude-ceremony-sprint.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 1 * * *",
+        "display": "30 1 * * *"
+      },
+      "schedule_display": "30 1 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 7
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-21T22:48:45.702335+07:00",
+      "next_run_at": "2026-04-28T01:30:00+07:00",
+      "last_run_at": "2026-04-27T21:34:18.284330+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T07:47:05.396081",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal",
+        "todo",
+        "memory",
+        "session_search",
+        "skills"
+      ]
+    },
+    {
+      "id": "e4ecfd0f1705",
+      "name": "pipe-retro",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "claude-ceremony-retro.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 5,13,21 * * *",
+        "display": "30 5,13,21 * * *"
+      },
+      "schedule_display": "30 5,13,21 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 16
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-21T22:48:45.702339+07:00",
+      "next_run_at": "2026-04-28T05:30:00+07:00",
+      "last_run_at": "2026-04-27T21:53:04.187248+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T07:47:05.396092",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal",
+        "todo",
+        "memory",
+        "session_search",
+        "skills"
+      ]
+    },
+    {
+      "id": "04cbb7d6c87f",
+      "name": "pipe-sec-review",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "qwen/qwen3-coder:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "2,32 * * * *",
+        "display": "2,32 * * * *"
+      },
+      "schedule_display": "2,32 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 128
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:49:51.910606+07:00",
+      "next_run_at": "2026-04-28T00:32:00+07:00",
+      "last_run_at": "2026-04-28T00:07:09.863135+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-27T13:50:12.769061",
+      "prompt": "\nSTEP -2 (repo structure): cat ~/.hermes/workspace/swarm-shared/repo-maps/<PROJECT>_map.md | head -60 \u2014 know dirs + symbols before writing code\n\nSTEP 0 (RAG priming): terminal: python3 ~/.claude/bin/ask-sqlite.py \"<keywords for your task>\" --source domain:sec-appsec 2>/dev/null | head -40\nThen cite 1-2 specific patterns from retrieved excerpts.\n\n3 turns max.\n1. terminal: bash ~/.hermes/scripts/pipeline-helper.sh sec\n2. terminal: cd $PROJECT_PATH && git log --since=\"30 min ago\" --name-only 2>/dev/null | head -20\n3. terminal: for each changed file, grep for hardcoded secrets/SQL injection/XSS patterns. Write ~/.hermes/workspace/swarm-shared/decisions/$RUN_ID_sec.md.\nN-1. memory (action=\"append\", target=\"memory\", content=\"<PROJECT>/<role>: key decision this run\")\nN. skill_manage (if reusable pattern spotted \u2014 else skip): create skill for the pattern\nOutput: severity count.\n\nMCP TOOLS AVAILABLE (aws-docs): mcp_aws_docs_search_documentation for AWS security best practices\n",
+      "enabled_toolsets": [
+        "terminal",
+        "file",
+        "memory",
+        "skills"
+      ]
+    },
+    {
+      "id": "8a44a03e0af6",
+      "name": "pipe-perf-bench",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "qwen/qwen3-coder:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "17,47 * * * *",
+        "display": "17,47 * * * *"
+      },
+      "schedule_display": "17,47 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 130
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:49:51.910626+07:00",
+      "next_run_at": "2026-04-28T00:17:00+07:00",
+      "last_run_at": "2026-04-27T22:51:42.707674+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-27T13:50:12.769099",
+      "prompt": "\nSTEP 0 (RAG priming): terminal: python3 ~/.claude/bin/ask-sqlite.py \"<keywords for your task>\" --source domain:ops-observability 2>/dev/null | head -40\nThen cite 1-2 specific patterns from retrieved excerpts.\n\n3 turns max.\n1. terminal: bash ~/.hermes/scripts/pipeline-helper.sh perf\n2. terminal: cd $PROJECT_PATH && find . -name \"bench*\" -o -name \"*.bench.*\" 2>/dev/null | head -3\n3. terminal: analyze latest changes for N+1 / unbounded loops / missing cache. Write decisions/$RUN_ID_perf.md.\nN-1. memory (action=\"append\", target=\"memory\", content=\"<PROJECT>/<role>: key decision this run\")\nN. skill_manage (if reusable pattern spotted \u2014 else skip): create skill for the pattern\nOutput: 1-line perf note.",
+      "enabled_toolsets": [
+        "terminal",
+        "file",
+        "memory",
+        "skills"
+      ]
+    },
+    {
+      "id": "cb07ad994b76",
+      "name": "pipe-architect",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "nvidia/nemotron-3-super-120b-a12b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "4,19,34,49 * * * *",
+        "display": "4,19,34,49 * * * *"
+      },
+      "schedule_display": "4,19,34,49 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 192
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:49:51.910631+07:00",
+      "next_run_at": "2026-04-28T00:19:00+07:00",
+      "last_run_at": "2026-04-27T17:48:28.597189+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-27T13:50:12.769136",
+      "prompt": "\nSTEP -2 (repo structure): cat ~/.hermes/workspace/swarm-shared/repo-maps/<PROJECT>_map.md | head -60 \u2014 know dirs + symbols before writing code\nSTEP -1 (past work): session_search q=\"<role> <project>\" \u2192 check prior ADRs\n\nSTEP 0 (RAG priming): terminal: python3 ~/.claude/bin/ask-sqlite.py \"<domain keywords for your task>\" --source domain:arch-patterns 2>/dev/null | head -40\nThen incorporate 1-2 specific patterns from retrieved excerpts into your output (cite by file path).\n\n4 turns max.\n1. terminal: bash ~/.hermes/scripts/pipeline-helper.sh arch\n2. terminal: cat priority.json; ls ~/.hermes/workspace/swarm-shared/decisions/ | tail -5\n3. mixture_of_agents (user_prompt=\"Architecture decision for <PROJECT>: analyze priority queue, recent decisions, propose next architectural move. Short ADR format (Context/Decision/Consequences). Return 1 ADR.\", reference_models=[\"openai/gpt-oss-120b:free\",\"nvidia/nemotron-3-super-120b-a12b:free\",\"google/gemma-4-26b-a4b-it:free\"], aggregator_model=\"openai/gpt-oss-120b:free\")\n4. terminal: write ~/.hermes/workspace/swarm-shared/decisions/$RUN_ID_arch.md with the MoA-synthesized ADR + memory append + skill_manage if pattern reusable.\nOutput: 1 line \u2014 ADR title.\n\nMCP TOOLS AVAILABLE (aws-docs + context7): mcp_aws_docs_search_documentation for AWS patterns; mcp_context7_query_docs for library docs (FastAPI/React/etc)\n",
+      "enabled_toolsets": [
+        "file",
+        "memory",
+        "terminal",
+        "session_search",
+        "skills",
+        "moa"
+      ]
+    },
+    {
+      "id": "e8fcdd42d58f",
+      "name": "pipe-ux-ui",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "google/gemma-4-26b-a4b-it:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "5,35 * * * *",
+        "display": "5,35 * * * *"
+      },
+      "schedule_display": "5,35 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 135
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:49:51.910635+07:00",
+      "next_run_at": "2026-04-28T00:35:00+07:00",
+      "last_run_at": "2026-04-28T00:07:09.593621+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903667",
+      "prompt": "\nSTEP 0 (RAG priming): terminal: python3 ~/.claude/bin/ask-sqlite.py \"<domain keywords for your task>\" --source domain:design-ux 2>/dev/null | head -40\nThen incorporate 1-2 specific patterns from retrieved excerpts into your output (cite by file path).\n\n3 turns max.\n1. terminal: bash ~/.hermes/scripts/pipeline-helper.sh ux\n2. terminal: cd $PROJECT_PATH && find . -name \"*.tsx\" -o -name \"*.vue\" -o -name \"*.html\" 2>/dev/null | head -5\n3. terminal: pick one UI surface, write 1 UX improvement to decisions/$RUN_ID_ux.md (accessibility / copy / layout).\nN-1. memory (action=\"append\", target=\"memory\", content=\"<PROJECT>/<role>: key decision this run\")\nN. skill_manage (if reusable pattern spotted \u2014 else skip): create skill for the pattern\nOutput: 1-line UX note.",
+      "enabled_toolsets": [
+        "terminal",
+        "file",
+        "memory"
+      ]
+    },
+    {
+      "id": "8a4e0aabc9e9",
+      "name": "pipe-devops",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "qwen/qwen3-coder:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "7,37 * * * *",
+        "display": "7,37 * * * *"
+      },
+      "schedule_display": "7,37 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 139
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:49:51.910639+07:00",
+      "next_run_at": "2026-04-28T00:07:00+07:00",
+      "last_run_at": "2026-04-27T23:40:54.072848+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903677",
+      "prompt": "\nSTEP 0 (RAG priming): terminal: python3 ~/.claude/bin/ask-sqlite.py \"<keywords for your task>\" --source domain:ops-devops 2>/dev/null | head -40\nThen cite 1-2 specific patterns from retrieved excerpts.\n\n3 turns max.\n1. terminal: bash ~/.hermes/scripts/pipeline-helper.sh ops\n2. terminal: cd $PROJECT_PATH && ls -t Dockerfile docker-compose.yml k8s/ .github/workflows 2>/dev/null | head -5\n3. terminal: audit 1 infra file \u2014 propose ONE concrete improvement (image size / healthcheck / CI cache / resource limit). Write decisions/$RUN_ID_ops.md.\nN-1. memory (action=\"append\", target=\"memory\", content=\"<PROJECT>/<role>: key decision this run\")\nN. skill_manage (if reusable pattern spotted \u2014 else skip): create skill for the pattern\nOutput: proposal title.\n\nMCP TOOLS AVAILABLE (terraform + aws-docs): If working with Terraform/AWS: mcp_terraform_* for provider/resource lookup, mcp_aws_docs_* for AWS service docs\n",
+      "enabled_toolsets": [
+        "terminal",
+        "file",
+        "memory",
+        "skills"
+      ]
+    },
+    {
+      "id": "dc9bed22e6c7",
+      "name": "pipe-data",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "qwen/qwen3-coder:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "8,38 * * * *",
+        "display": "8,38 * * * *"
+      },
+      "schedule_display": "8,38 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 137
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:49:51.910643+07:00",
+      "next_run_at": "2026-04-28T00:08:00+07:00",
+      "last_run_at": "2026-04-27T23:40:55.437130+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-27T13:50:12.769208",
+      "prompt": "\nSTEP 0 (RAG priming): terminal: python3 ~/.claude/bin/ask-sqlite.py \"<keywords for your task>\" --source domain:data-engineering 2>/dev/null | head -40\nThen cite 1-2 specific patterns from retrieved excerpts.\n\n3 turns max.\n1. terminal: bash ~/.hermes/scripts/pipeline-helper.sh data\n2. terminal: cd $PROJECT_PATH && grep -rE \"CREATE TABLE|MIGRATION|schema.*yaml\" . 2>/dev/null | head -5\n3. terminal: propose one data/schema/metric improvement. Write decisions/$RUN_ID_data.md.\nN-1. memory (action=\"append\", target=\"memory\", content=\"<PROJECT>/<role>: key decision this run\")\nN. skill_manage (if reusable pattern spotted \u2014 else skip): create skill for the pattern\nOutput: topic.",
+      "enabled_toolsets": [
+        "terminal",
+        "file",
+        "memory"
+      ]
+    },
+    {
+      "id": "164d0c586375",
+      "name": "pipe-docs",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "openai/gpt-oss-20b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "22,52 * * * *",
+        "display": "22,52 * * * *"
+      },
+      "schedule_display": "22,52 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 129
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:49:51.910647+07:00",
+      "next_run_at": "2026-04-28T00:22:00+07:00",
+      "last_run_at": "2026-04-28T00:13:25.387596+07:00",
+      "last_status": "error",
+      "last_error": "Agent completed but produced empty response (model error, timeout, or misconfiguration)",
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903683",
+      "prompt": "\nSTEP 0 (RAG priming): terminal: python3 ~/.claude/bin/ask-sqlite.py \"<keywords for your task>\" --source domain:arch-patterns 2>/dev/null | head -40\nThen cite 1-2 specific patterns from retrieved excerpts.\n\n3 turns max.\n1. terminal: bash ~/.hermes/scripts/pipeline-helper.sh docs\n2. terminal: cd $PROJECT_PATH && [[ -f README.md ]] && git log -1 --format=%cr README.md; ls docs/ 2>/dev/null | head -5\n3. terminal: write OR update ONE doc section in $PROJECT_PATH (README badge / docs/ page / code comment block). Commit unnecessary.\nN-1. memory (action=\"append\", target=\"memory\", content=\"<PROJECT>/<role>: key decision this run\")\nN. skill_manage (if reusable pattern spotted \u2014 else skip): create skill for the pattern\nOutput: file updated.",
+      "enabled_toolsets": [
+        "terminal",
+        "file",
+        "memory"
+      ]
+    },
+    {
+      "id": "cc7391d2fc63",
+      "name": "pipe-ai-research",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "nvidia/nemotron-3-super-120b-a12b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "11,41 * * * *",
+        "display": "11,41 * * * *"
+      },
+      "schedule_display": "11,41 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 130
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:49:51.910650+07:00",
+      "next_run_at": "2026-04-28T00:11:00+07:00",
+      "last_run_at": "2026-04-27T23:25:48.616446+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-27T13:50:12.769260",
+      "prompt": "STEP -1 session_search q=\"AI research <topic>\" \u2192 check past proposals\n\nSTEP 0 (RAG priming): terminal: python3 ~/.claude/bin/ask-sqlite.py \"<domain keywords for your task>\" --source domain:ai-engineering 2>/dev/null | head -40\nThen incorporate 1-2 specific patterns from retrieved excerpts into your output (cite by file path).\n\n3 turns max.\n1. terminal: bash ~/.hermes/scripts/pipeline-helper.sh ai-rd\n2. web: find ONE 2026 AI/ML technique applicable to $PROJECT.\n3. terminal: write proposal to decisions/$RUN_ID_ai-rd.md with {technique, fit, effort}. Append as backlog item if promising.\nN-1. memory (action=\"append\", target=\"memory\", content=\"<PROJECT>/<role>: key decision this run\")\nN. skill_manage (if reusable pattern spotted \u2014 else skip): create skill for the pattern\nOutput: technique name.",
+      "enabled_toolsets": [
+        "memory",
+        "terminal",
+        "session_search",
+        "web",
+        "skills"
+      ]
+    },
+    {
+      "id": "6f1b51b55936",
+      "name": "pipe-integration",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "qwen/qwen3-coder:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "23,53 * * * *",
+        "display": "23,53 * * * *"
+      },
+      "schedule_display": "23,53 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 128
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-21T22:49:51.910654+07:00",
+      "next_run_at": "2026-04-28T00:23:00+07:00",
+      "last_run_at": "2026-04-28T00:07:06.044448+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903690",
+      "prompt": "\nSTEP -2 (repo structure): cat ~/.hermes/workspace/swarm-shared/repo-maps/<PROJECT>_map.md | head -60 \u2014 know dirs + symbols before writing code\n\nSTEP 0 (RAG priming): terminal: python3 ~/.claude/bin/ask-sqlite.py \"<keywords for your task>\" --source domain:dev-backend 2>/dev/null | head -40\nThen cite 1-2 specific patterns from retrieved excerpts.\n\n3 turns max.\n1. terminal: bash ~/.hermes/scripts/pipeline-helper.sh int\n2. terminal: cd $PROJECT_PATH && grep -rE \"(axios|fetch|httpclient|webhook|SDK)\" . 2>/dev/null | head -5\n3. terminal: audit 1 integration \u2014 check timeout/retry/error handling. Write decisions/$RUN_ID_int.md.\nN-1. memory (action=\"append\", target=\"memory\", content=\"<PROJECT>/<role>: key decision this run\")\nN. skill_manage (if reusable pattern spotted \u2014 else skip): create skill for the pattern\nOutput: integration checked.\n\nMCP TOOLS AVAILABLE (docker-mcp): mcp_docker_mcp_run_command for container inspection\n",
+      "enabled_toolsets": [
+        "terminal",
+        "file",
+        "memory"
+      ]
+    },
+    {
+      "id": "cfc9032aa94a",
+      "name": "pipe-claude-reviewer",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "15,45 * * * *",
+        "display": "15,45 * * * *"
+      },
+      "schedule_display": "15,45 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 129
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T00:04:51.193157+07:00",
+      "next_run_at": "2026-04-28T00:15:00+07:00",
+      "last_run_at": "2026-04-27T23:16:40.621665+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903691",
+      "prompt": "TURN 1: terminal: bash ~/.claude/bin/claude-reviewer.sh\nOutput: 1 line with review summary.",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "c9f0c256c773",
+      "name": "pipe-claude-dev-review",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 * * * *",
+        "display": "30 * * * *"
+      },
+      "schedule_display": "30 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 73
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T00:04:51.193173+07:00",
+      "next_run_at": "2026-04-28T00:30:00+07:00",
+      "last_run_at": "2026-04-27T23:40:42.382839+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903692",
+      "prompt": "TURN 1: terminal: bash ~/.claude/bin/claude-dev-review.sh\nOutput: 1-line code quality summary.",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "2b6b1c35f4a2",
+      "name": "pipe-granite-summarizer",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "40 * * * *",
+        "display": "40 * * * *"
+      },
+      "schedule_display": "40 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 75
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-22T01:09:05.748758+07:00",
+      "next_run_at": "2026-04-28T00:40:00+07:00",
+      "last_run_at": "2026-04-27T23:49:13.181971+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903693",
+      "prompt": "TURN 1: terminal: bash ~/.claude/bin/granite-summarizer.sh\nOutput: path to digest.",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "0247612ffefd",
+      "name": "pipe-granite-tagger",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "10 * * * *",
+        "display": "10 * * * *"
+      },
+      "schedule_display": "10 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 72
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-22T01:09:05.748776+07:00",
+      "next_run_at": "2026-04-28T00:10:00+07:00",
+      "last_run_at": "2026-04-27T23:25:55.378260+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903694",
+      "prompt": "TURN 1: terminal: bash ~/.claude/bin/granite-tagger.sh\nOutput: path to tags file.",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "9d3b2dae9f17",
+      "name": "pipe-granite-deduper",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "25 * * * *",
+        "display": "25 * * * *"
+      },
+      "schedule_display": "25 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 71
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-22T01:09:05.748781+07:00",
+      "next_run_at": "2026-04-28T00:25:00+07:00",
+      "last_run_at": "2026-04-27T23:52:00.236880+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903695",
+      "prompt": "TURN 1: terminal: bash ~/.claude/bin/granite-deduper.sh\nOutput: path to dups file + pair count.",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "21569d3f5c23",
+      "name": "pipe-granite-bd",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "13,43 * * * *",
+        "display": "13,43 * * * *"
+      },
+      "schedule_display": "13,43 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 122
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-22T01:25:37.416378+07:00",
+      "next_run_at": "2026-04-28T00:13:00+07:00",
+      "last_run_at": "2026-04-27T23:26:54.504996+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903696",
+      "prompt": "TURN 1: terminal: bash ~/.claude/bin/granite-business-research.sh\nOutput: 1-line path.",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "bd35fcf5198e",
+      "name": "pipe-granite-marketing",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "28 * * * *",
+        "display": "28 * * * *"
+      },
+      "schedule_display": "28 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 72
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-22T01:25:37.416390+07:00",
+      "next_run_at": "2026-04-28T00:28:00+07:00",
+      "last_run_at": "2026-04-28T00:01:40.565913+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903697",
+      "prompt": "TURN 1: terminal: bash ~/.claude/bin/granite-marketing.sh\nOutput: 1-line path.",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "15ad1b41a6b9",
+      "name": "pipe-granite-growth",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "56 * * * *",
+        "display": "56 * * * *"
+      },
+      "schedule_display": "56 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 75
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-22T01:25:37.416395+07:00",
+      "next_run_at": "2026-04-28T00:56:00+07:00",
+      "last_run_at": "2026-04-27T23:28:02.372495+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903698",
+      "prompt": "TURN 1: terminal: bash ~/.claude/bin/granite-growth.sh\nOutput: 1-line path.",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "8c710a881a79",
+      "name": "pipe-granite-ba",
+      "skills": [
+        "knowledge-rag",
+        "self-improvement"
+      ],
+      "skill": "knowledge-rag",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "58 * * * *",
+        "display": "58 * * * *"
+      },
+      "schedule_display": "58 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 75
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-22T01:25:37.416398+07:00",
+      "next_run_at": "2026-04-28T00:58:00+07:00",
+      "last_run_at": "2026-04-27T23:23:38.277320+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903699",
+      "prompt": "TURN 1: terminal: bash ~/.claude/bin/granite-ba.sh\nOutput: 1-line path.",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "47d06a3011c1",
+      "name": "pipe-zombie-killer",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
+      },
+      "schedule_display": "*/5 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 409
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T01:26:09.655785+07:00",
+      "next_run_at": "2026-04-28T00:10:00+07:00",
+      "last_run_at": "2026-04-27T10:37:54.887422+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T01:36:21.903700",
+      "prompt": "TURN 1: terminal: bash ~/.hermes/scripts/zombie-killer.sh\nOutput: 1 line with closed + reset counts.",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "3b62fecdf902",
+      "name": "pipe-ingest",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.hermes/scripts/pipeline-ingest.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/10 * * * *",
+        "display": "*/10 * * * *"
+      },
+      "schedule_display": "*/10 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 219
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T08:12:42.288644+07:00",
+      "next_run_at": "2026-04-28T00:10:00+07:00",
+      "last_run_at": "2026-04-27T10:11:47.911821+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T08:29:48.907129",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "14302343f226",
+      "name": "pipe-auto-merge",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "claude-auto-merge.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "48 * * * *",
+        "display": "48 * * * *"
+      },
+      "schedule_display": "48 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 68
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T08:24:01.666816+07:00",
+      "next_run_at": "2026-04-28T00:48:00+07:00",
+      "last_run_at": "2026-04-28T00:06:41.016002+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T08:29:48.907145",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "9351ec5192f9",
+      "name": "scrape-dev-patterns",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "scrape-dev-patterns.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "15 */6 * * *",
+        "display": "15 */6 * * *"
+      },
+      "schedule_display": "15 */6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 18
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T08:42:11.289265+07:00",
+      "next_run_at": "2026-04-28T00:15:00+07:00",
+      "last_run_at": "2026-04-27T18:29:57.904689+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T08:42:11.289265",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "e7f35cac93d1",
+      "name": "scrape-external-skills",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "scrape-external-skills.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 4,16 * * *",
+        "display": "0 4,16 * * *"
+      },
+      "schedule_display": "0 4,16 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 7
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T08:42:11.289265+07:00",
+      "next_run_at": "2026-04-28T04:00:00+07:00",
+      "last_run_at": "2026-04-27T16:22:39.265219+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T08:42:11.289265",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "aeb7bbd14f6c",
+      "name": "domain-dev-mobile",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "15 4 * * 2,4,6",
+        "display": "15 4 * * 2,4,6"
+      },
+      "schedule_display": "15 4 * * 2,4,6",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T09:31:25.924447+07:00",
+      "next_run_at": "2026-04-28T04:15:00+07:00",
+      "last_run_at": "2026-04-25T05:13:42.963235+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T09:31:25.924447",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-domain-expert.sh dev-mobile",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "54222a68f590",
+      "name": "domain-dev-fullstack",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "20 4 * * 2,4,6",
+        "display": "20 4 * * 2,4,6"
+      },
+      "schedule_display": "20 4 * * 2,4,6",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T09:31:25.924447+07:00",
+      "next_run_at": "2026-04-28T04:20:00+07:00",
+      "last_run_at": "2026-04-25T05:13:45.248719+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T09:31:25.924447",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-domain-expert.sh dev-fullstack",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "563d8812170f",
+      "name": "domain-ops-observability",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "35 4 * * 2,4,6",
+        "display": "35 4 * * 2,4,6"
+      },
+      "schedule_display": "35 4 * * 2,4,6",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T09:31:25.924447+07:00",
+      "next_run_at": "2026-04-28T04:35:00+07:00",
+      "last_run_at": "2026-04-25T05:13:43.506071+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T09:31:25.924447",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-domain-expert.sh ops-observability",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "78e8a225f899",
+      "name": "domain-ai-mlops",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "45 4 * * 2,4,6",
+        "display": "45 4 * * 2,4,6"
+      },
+      "schedule_display": "45 4 * * 2,4,6",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T09:31:25.924447+07:00",
+      "next_run_at": "2026-04-28T04:45:00+07:00",
+      "last_run_at": "2026-04-25T05:13:44.655520+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T09:31:25.924447",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-domain-expert.sh ai-mlops",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "645786b25d85",
+      "name": "domain-sec-cloudsec",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "55 4 * * 2,4,6",
+        "display": "55 4 * * 2,4,6"
+      },
+      "schedule_display": "55 4 * * 2,4,6",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T09:31:25.924447+07:00",
+      "next_run_at": "2026-04-28T04:55:00+07:00",
+      "last_run_at": "2026-04-25T05:13:43.502613+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T09:31:25.924447",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-domain-expert.sh sec-cloudsec",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "eac2ac56f191",
+      "name": "domain-data-engineering",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "5 5 * * 2,4,6",
+        "display": "5 5 * * 2,4,6"
+      },
+      "schedule_display": "5 5 * * 2,4,6",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T09:31:25.924447+07:00",
+      "next_run_at": "2026-04-28T05:05:00+07:00",
+      "last_run_at": "2026-04-25T06:57:39.676834+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T09:31:25.924447",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-domain-expert.sh data-engineering",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "9908e79b46bc",
+      "name": "domain-arch-patterns",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "15 5 * * 2,4,6",
+        "display": "15 5 * * 2,4,6"
+      },
+      "schedule_display": "15 5 * * 2,4,6",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T09:31:25.924447+07:00",
+      "next_run_at": "2026-04-28T05:15:00+07:00",
+      "last_run_at": "2026-04-25T06:57:39.682799+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T09:31:25.924447",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-domain-expert.sh arch-patterns",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "d52eedfa36e1",
+      "name": "scrape-stackoverflow",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "scrape-stackoverflow.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 5,17 * * *",
+        "display": "0 5,17 * * *"
+      },
+      "schedule_display": "0 5,17 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 8
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:13:19.326212+07:00",
+      "next_run_at": "2026-04-28T05:00:00+07:00",
+      "last_run_at": "2026-04-27T17:37:04.967083+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:13:19.326212",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "c975dce791c3",
+      "name": "scrape-devto",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "scrape-devto.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 5,17 * * *",
+        "display": "30 5,17 * * *"
+      },
+      "schedule_display": "30 5,17 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 9
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:13:19.326212+07:00",
+      "next_run_at": "2026-04-28T05:30:00+07:00",
+      "last_run_at": "2026-04-27T17:46:12.682265+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:13:19.326212",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "5e73485b7cf8",
+      "name": "scrape-agentic-discovery",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "scrape-agentic-discovery.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/30 * * * *",
+        "display": "*/30 * * * *"
+      },
+      "schedule_display": "*/30 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 103
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:26:25.532005+07:00",
+      "next_run_at": "2026-04-28T00:30:00+07:00",
+      "last_run_at": "2026-04-27T23:47:19.947046+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:26:25.532005",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "54c788d47bc5",
+      "name": "scrape-release-notes",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "scrape-release-notes.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */3 * * *",
+        "display": "0 */3 * * *"
+      },
+      "schedule_display": "0 */3 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 26
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:26:25.532005+07:00",
+      "next_run_at": "2026-04-28T03:00:00+07:00",
+      "last_run_at": "2026-04-28T00:07:06.036711+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:26:25.532005",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "c88190187837",
+      "name": "scrape-hn-discussions",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "scrape-hn-discussions.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */2 * * *",
+        "display": "0 */2 * * *"
+      },
+      "schedule_display": "0 */2 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 37
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:26:25.532005+07:00",
+      "next_run_at": "2026-04-28T02:00:00+07:00",
+      "last_run_at": "2026-04-27T22:24:24.716409+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:26:25.532005",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "91c9fcdecc73",
+      "name": "scrape-adr-decisions",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "scrape-adr-decisions.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 6,18 * * *",
+        "display": "30 6,18 * * *"
+      },
+      "schedule_display": "30 6,18 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 8
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:26:25.532005+07:00",
+      "next_run_at": "2026-04-28T06:30:00+07:00",
+      "last_run_at": "2026-04-27T20:00:13.643901+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:26:25.532005",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "3a3ec84bfe48",
+      "name": "scrape-eng-blogs",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "scrape-eng-blogs.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */1 * * *",
+        "display": "0 */1 * * *"
+      },
+      "schedule_display": "0 */1 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 66
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:26:25.532005+07:00",
+      "next_run_at": "2026-04-28T01:00:00+07:00",
+      "last_run_at": "2026-04-27T23:28:42.321831+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:26:25.532005",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "2ae10993deb4",
+      "name": "code-deep-dev-frontend",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 2,14 * * *",
+        "display": "0 2,14 * * *"
+      },
+      "schedule_display": "0 2,14 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 9
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:43:21.735187+07:00",
+      "next_run_at": "2026-04-28T02:00:00+07:00",
+      "last_run_at": "2026-04-27T14:20:38.640699+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:43:21.735187",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-code-deep.sh dev-frontend",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "51572ae709d9",
+      "name": "code-deep-dev-backend",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "5 2,14 * * *",
+        "display": "5 2,14 * * *"
+      },
+      "schedule_display": "5 2,14 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 9
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:43:21.735187+07:00",
+      "next_run_at": "2026-04-28T02:05:00+07:00",
+      "last_run_at": "2026-04-27T14:20:39.940778+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:43:21.735187",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-code-deep.sh dev-backend",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "f4453858fe0b",
+      "name": "code-deep-dev-fullstack",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "10 2,14 * * *",
+        "display": "10 2,14 * * *"
+      },
+      "schedule_display": "10 2,14 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 9
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:43:21.735187+07:00",
+      "next_run_at": "2026-04-28T02:10:00+07:00",
+      "last_run_at": "2026-04-27T14:20:50.494066+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:43:21.735187",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-code-deep.sh dev-fullstack",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "706243770fd8",
+      "name": "code-deep-ops-devops",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "15 2,14 * * *",
+        "display": "15 2,14 * * *"
+      },
+      "schedule_display": "15 2,14 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 9
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:43:21.735187+07:00",
+      "next_run_at": "2026-04-28T02:15:00+07:00",
+      "last_run_at": "2026-04-27T14:20:50.486201+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:43:21.735187",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-code-deep.sh ops-devops",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "a991d8b50b75",
+      "name": "code-deep-ops-sre",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "20 2,14 * * *",
+        "display": "20 2,14 * * *"
+      },
+      "schedule_display": "20 2,14 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 9
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:43:21.735187+07:00",
+      "next_run_at": "2026-04-28T02:20:00+07:00",
+      "last_run_at": "2026-04-27T14:41:05.057076+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:43:21.735187",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-code-deep.sh ops-sre",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "f608251d4e8a",
+      "name": "code-deep-ai-engineering",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "25 2,14 * * *",
+        "display": "25 2,14 * * *"
+      },
+      "schedule_display": "25 2,14 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 8
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:43:21.735187+07:00",
+      "next_run_at": "2026-04-28T02:25:00+07:00",
+      "last_run_at": "2026-04-27T14:41:03.498124+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:43:21.735187",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-code-deep.sh ai-engineering",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "987c8e1139d8",
+      "name": "code-deep-sec-appsec",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 2,14 * * *",
+        "display": "30 2,14 * * *"
+      },
+      "schedule_display": "30 2,14 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 8
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:43:21.735187+07:00",
+      "next_run_at": "2026-04-28T02:30:00+07:00",
+      "last_run_at": "2026-04-27T14:41:17.881320+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:43:21.735187",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-code-deep.sh sec-appsec",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "f1c718df8a7b",
+      "name": "code-deep-sec-cloudsec",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "35 2,14 * * *",
+        "display": "35 2,14 * * *"
+      },
+      "schedule_display": "35 2,14 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 8
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T10:43:21.735187+07:00",
+      "next_run_at": "2026-04-28T02:35:00+07:00",
+      "last_run_at": "2026-04-27T14:41:19.413581+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:43:21.735187",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-code-deep.sh sec-cloudsec",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "ebb75d07abe9",
+      "name": "scrape-trending-realtime",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "scrape-trending-realtime.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/15 * * * *",
+        "display": "*/15 * * * *"
+      },
+      "schedule_display": "*/15 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 160
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "created_at": "2026-04-22T10:43:21.735187+07:00",
+      "next_run_at": "2026-04-28T00:15:00+07:00",
+      "last_run_at": "2026-04-27T20:11:22.725913+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T10:43:21.735187",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "68130501bbcd",
+      "name": "skill-synthesizer",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.hermes/scripts/skill-synthesizer.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "37 * * * *",
+        "display": "37 * * * *"
+      },
+      "schedule_display": "37 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 66
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T11:12:21.606007+07:00",
+      "next_run_at": "2026-04-28T00:37:00+07:00",
+      "last_run_at": "2026-04-27T23:41:41.825948+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T11:12:21.606007",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "8f7fb9b3fdd4",
+      "name": "pipe-mini-retro",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/claude-mini-retro.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "38 */3 * * *",
+        "display": "38 */3 * * *"
+      },
+      "schedule_display": "38 */3 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 29
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T11:24:55.359919+07:00",
+      "next_run_at": "2026-04-28T00:38:00+07:00",
+      "last_run_at": "2026-04-27T21:52:41.504898+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T12:01:55.050169",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "b7521eed3009",
+      "name": "pipe-mini-sprint",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "claude-mini-sprint.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "27 */2 * * *",
+        "display": "27 */2 * * *"
+      },
+      "schedule_display": "27 */2 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 37
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T11:24:55.359919+07:00",
+      "next_run_at": "2026-04-28T00:27:00+07:00",
+      "last_run_at": "2026-04-27T23:01:32.351800+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T12:01:55.050218",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "973baba8092c",
+      "name": "pipe-agent-critic",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "claude-agent-critic.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "26 */2 * * *",
+        "display": "26 */2 * * *"
+      },
+      "schedule_display": "26 */2 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 37
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T11:30:58.204936+07:00",
+      "next_run_at": "2026-04-28T00:26:00+07:00",
+      "last_run_at": "2026-04-27T23:01:51.497775+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T12:01:55.050269",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "4a76ecd173ee",
+      "name": "pipe-repo-map",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "build-repo-map.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */4 * * *",
+        "display": "0 */4 * * *"
+      },
+      "schedule_display": "0 */4 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 22
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T11:30:58.204936+07:00",
+      "next_run_at": "2026-04-28T04:00:00+07:00",
+      "last_run_at": "2026-04-27T20:19:24.410908+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T12:01:55.050319",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "b7c3fe7da541",
+      "name": "pipe-security-audit",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "claude-security-audit.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "47 */2 * * *",
+        "display": "47 */2 * * *"
+      },
+      "schedule_display": "47 */2 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 36
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T11:35:33.590797+07:00",
+      "next_run_at": "2026-04-28T00:47:00+07:00",
+      "last_run_at": "2026-04-27T22:57:54.104344+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T12:01:55.050376",
+      "prompt": null,
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "bfb81dac97c3",
+      "name": "mythos-audit-coding",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "17 */6 * * *",
+        "display": "17 */6 * * *"
+      },
+      "schedule_display": "17 */6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 18
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T11:55:17.031546+07:00",
+      "next_run_at": "2026-04-28T00:17:00+07:00",
+      "last_run_at": "2026-04-27T18:28:56.926036+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T11:55:17.031546",
+      "prompt": "bash /Users/Ashira/.claude/bin/claude-mythos-audit.sh coding",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "b918d9847390",
+      "name": "mythos-audit-ops",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "23 */6 * * *",
+        "display": "23 */6 * * *"
+      },
+      "schedule_display": "23 */6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 16
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T11:55:17.031546+07:00",
+      "next_run_at": "2026-04-28T00:23:00+07:00",
+      "last_run_at": "2026-04-27T18:29:06.825873+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T11:55:17.031546",
+      "prompt": "bash /Users/Ashira/.claude/bin/claude-mythos-audit.sh ops",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "369826cc8127",
+      "name": "mythos-audit-ai-engineering",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "29 */6 * * *",
+        "display": "29 */6 * * *"
+      },
+      "schedule_display": "29 */6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 15
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T11:55:17.031546+07:00",
+      "next_run_at": "2026-04-28T00:29:00+07:00",
+      "last_run_at": "2026-04-27T19:47:18.770768+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T11:55:17.031546",
+      "prompt": "bash /Users/Ashira/.claude/bin/claude-mythos-audit.sh ai-engineering",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "6e5d1018510a",
+      "name": "mythos-audit-cloud",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "41 */6 * * *",
+        "display": "41 */6 * * *"
+      },
+      "schedule_display": "41 */6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 16
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T11:55:17.031546+07:00",
+      "next_run_at": "2026-04-28T00:41:00+07:00",
+      "last_run_at": "2026-04-27T19:47:18.308656+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T11:55:17.031546",
+      "prompt": "bash /Users/Ashira/.claude/bin/claude-mythos-audit.sh cloud",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "d438c2895f93",
+      "name": "mythos-audit-ai-agent",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "53 */6 * * *",
+        "display": "53 */6 * * *"
+      },
+      "schedule_display": "53 */6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 17
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T11:55:17.031546+07:00",
+      "next_run_at": "2026-04-28T00:53:00+07:00",
+      "last_run_at": "2026-04-27T19:47:18.529624+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T11:55:17.031546",
+      "prompt": "bash /Users/Ashira/.claude/bin/claude-mythos-audit.sh ai-agent",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "81816be3af1e",
+      "name": "mythos-scrape-coding",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 2 * * 1,4",
+        "display": "0 2 * * 1,4"
+      },
+      "schedule_display": "0 2 * * 1,4",
+      "repeat": {
+        "times": null,
+        "completed": 1
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T11:55:17.031546+07:00",
+      "next_run_at": "2026-04-30T02:00:00+07:00",
+      "last_run_at": "2026-04-23T02:01:01.864550+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T11:55:17.031546",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-mythos-domain.sh coding",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "10618a260cbb",
+      "name": "mythos-scrape-ai-engineering",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": null,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 3 * * 1,4",
+        "display": "0 3 * * 1,4"
+      },
+      "schedule_display": "0 3 * * 1,4",
+      "repeat": {
+        "times": null,
+        "completed": 1
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T11:55:17.031546+07:00",
+      "next_run_at": "2026-04-30T03:00:00+07:00",
+      "last_run_at": "2026-04-23T03:02:59.090249+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-22T11:55:17.031546",
+      "prompt": "bash /Users/Ashira/.claude/bin/scrape-mythos-domain.sh ai-engineering",
+      "enabled_toolsets": [
+        "terminal"
+      ]
+    },
+    {
+      "id": "76e74538ef45",
+      "name": "pipe-qwen-coder",
+      "prompt": null,
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "qwen-coder-worker.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/3 * * * *",
+        "display": "*/3 * * * *"
+      },
+      "schedule_display": "*/3 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 286
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-22T21:49:55.338088+07:00",
+      "next_run_at": "2026-04-28T00:09:00+07:00",
+      "enabled_toolsets": [
+        "terminal"
+      ],
+      "deliver": "local",
+      "last_delivery_error": null,
+      "last_error": null,
+      "last_run_at": "2026-04-27T10:28:20.158249+07:00",
+      "last_status": "ok",
+      "origin": null,
+      "updated_at": "2026-04-23T02:32:20.151610"
+    },
+    {
+      "id": "2746a8899873",
+      "name": "pipe-dev-samba",
+      "prompt": null,
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "dev-cloud-worker.sh samba",
+      "schedule": {
+        "kind": "cron",
+        "expr": "2,7,12,17,22,27,32,37,42,47,52,57 * * * *",
+        "display": "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
+      },
+      "schedule_display": "2,7,12,17,22,27,32,37,42,47,52,57 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 199
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T02:33:45.799920+07:00",
+      "next_run_at": "2026-04-28T00:07:00+07:00",
+      "enabled_toolsets": [
+        "terminal"
+      ],
+      "deliver": "local",
+      "last_delivery_error": null,
+      "last_error": null,
+      "last_run_at": "2026-04-27T13:51:43.858098+07:00",
+      "last_status": "ok",
+      "origin": null,
+      "updated_at": "2026-04-23T02:32:20.151610"
+    },
+    {
+      "id": "3e601dee6ddd",
+      "name": "pipe-dev-gemini",
+      "prompt": null,
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "dev-cloud-worker.sh gemini",
+      "schedule": {
+        "kind": "cron",
+        "expr": "8,23,38,53 * * * *",
+        "display": "8,23,38,53 * * * *"
+      },
+      "schedule_display": "8,23,38,53 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": false,
+      "state": "paused",
+      "paused_at": "2026-04-23T10:24:00+07:00",
+      "paused_reason": "rate-limited 429 \u2014 auto-paused until quota resets",
+      "created_at": "2026-04-23T02:33:45.799941+07:00",
+      "enabled_toolsets": [
+        "terminal"
+      ],
+      "deliver": "local",
+      "last_delivery_error": null,
+      "last_error": null,
+      "last_run_at": null,
+      "last_status": null,
+      "origin": null,
+      "updated_at": "2026-04-23T02:32:20.151610"
+    },
+    {
+      "id": "5bda05baf856",
+      "name": "scrape-arxiv",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "scrape-arxiv-weekly.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 4 * * 1,3,5",
+        "display": "30 4 * * 1,3,5"
+      },
+      "schedule_display": "30 4 * * 1,3,5",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:10.767997+07:00",
+      "next_run_at": "2026-04-29T04:30:00+07:00",
+      "last_run_at": "2026-04-27T09:15:29.542268+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null
+    },
+    {
+      "id": "babb016c41c7",
+      "name": "scrape-awesome-lists",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "scrape-awesome-lists.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "45 5 * * 1",
+        "display": "45 5 * * 1"
+      },
+      "schedule_display": "45 5 * * 1",
+      "repeat": {
+        "times": null,
+        "completed": 1
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:10.926984+07:00",
+      "next_run_at": "2026-05-04T05:45:00+07:00",
+      "last_run_at": "2026-04-27T09:15:30.892393+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null
+    },
+    {
+      "id": "0c4501906b9f",
+      "name": "scrape-code-style",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "scrape-code-style.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 6,18 * * 1,4",
+        "display": "0 6,18 * * 1,4"
+      },
+      "schedule_display": "0 6,18 * * 1,4",
+      "repeat": {
+        "times": null,
+        "completed": 3
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:11.061822+07:00",
+      "next_run_at": "2026-04-30T06:00:00+07:00",
+      "last_run_at": "2026-04-27T18:14:02.850557+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null
+    },
+    {
+      "id": "bc659049a2a5",
+      "name": "scrape-security-deep",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "scrape-security-deep.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 3 * * 2,5",
+        "display": "0 3 * * 2,5"
+      },
+      "schedule_display": "0 3 * * 2,5",
+      "repeat": {
+        "times": null,
+        "completed": 1
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:11.204608+07:00",
+      "next_run_at": "2026-04-28T03:00:00+07:00",
+      "last_run_at": "2026-04-24T03:09:02.988626+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null
+    },
+    {
+      "id": "e5ae730beab7",
+      "name": "distill-patterns",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "distill-patterns.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "42 */4 * * *",
+        "display": "42 */4 * * *"
+      },
+      "schedule_display": "42 */4 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 16
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:11.402283+07:00",
+      "next_run_at": "2026-04-28T00:42:00+07:00",
+      "last_run_at": "2026-04-27T20:46:14.767486+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null
+    },
+    {
+      "id": "3cd7b4c6b94d",
+      "name": "rag-reindex",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "rag-index.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 6 * * *",
+        "display": "0 6 * * *"
+      },
+      "schedule_display": "0 6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": false,
+      "state": "scheduled",
+      "paused_at": "2026-04-23T17:45:00+07:00",
+      "paused_reason": "ChromaDB deprecated \u2014 SQLite path via pipe-embed-on-ingest replaces this (see ~/.claude/bin/embed-doc.py + ask-sqlite.py)",
+      "created_at": "2026-04-23T10:31:11.550844+07:00",
+      "next_run_at": "2026-04-24T06:00:00+07:00",
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null
+    },
+    {
+      "id": "9a7ce6432882",
+      "name": "graph-sync",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "graph-sync.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "15 6 * * *",
+        "display": "15 6 * * *"
+      },
+      "schedule_display": "15 6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 3
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:11.699548+07:00",
+      "next_run_at": "2026-04-28T06:15:00+07:00",
+      "last_run_at": "2026-04-27T09:15:24.420220+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null
+    },
+    {
+      "id": "c32a036a22db",
+      "name": "pipe-standup",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh standup",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 9 * * 1-5",
+        "display": "0 9 * * 1-5"
+      },
+      "schedule_display": "0 9 * * 1-5",
+      "repeat": {
+        "times": null,
+        "completed": 1
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:11.832757+07:00",
+      "next_run_at": "2026-04-28T09:00:00+07:00",
+      "last_run_at": "2026-04-24T09:01:15.103860+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318730"
+    },
+    {
+      "id": "c904e5109580",
+      "name": "pipe-backlog-grooming",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh backlog-grooming",
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 10 * * 1,3,5",
+        "display": "30 10 * * 1,3,5"
+      },
+      "schedule_display": "30 10 * * 1,3,5",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:11.999239+07:00",
+      "next_run_at": "2026-04-29T10:30:00+07:00",
+      "last_run_at": "2026-04-27T10:34:16.321112+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318748"
+    },
+    {
+      "id": "c9cc7a37e399",
+      "name": "pipe-demo-review",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh demo-review",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 15 * * 5",
+        "display": "0 15 * * 5"
+      },
+      "schedule_display": "0 15 * * 5",
+      "repeat": {
+        "times": null,
+        "completed": 1
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:12.134359+07:00",
+      "next_run_at": "2026-05-01T15:00:00+07:00",
+      "last_run_at": "2026-04-24T15:05:19.251353+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318765"
+    },
+    {
+      "id": "d7ffbce8d4b3",
+      "name": "pipe-post-mortem",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh post-mortem",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 11 * * *",
+        "display": "0 11 * * *"
+      },
+      "schedule_display": "0 11 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 4
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:12.267920+07:00",
+      "next_run_at": "2026-04-28T11:00:00+07:00",
+      "last_run_at": "2026-04-27T11:18:54.179207+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318782"
+    },
+    {
+      "id": "fbfea3a9f82c",
+      "name": "pipe-pre-mortem",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh pre-mortem",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 10 * * 1",
+        "display": "0 10 * * 1"
+      },
+      "schedule_display": "0 10 * * 1",
+      "repeat": {
+        "times": null,
+        "completed": 1
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:12.402573+07:00",
+      "next_run_at": "2026-05-04T10:00:00+07:00",
+      "last_run_at": "2026-04-27T10:09:29.571924+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318799"
+    },
+    {
+      "id": "69ed09d7866f",
+      "name": "pipe-release-review",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh release-review",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 18 * * *",
+        "display": "0 18 * * *"
+      },
+      "schedule_display": "0 18 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 4
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:12.656900+07:00",
+      "next_run_at": "2026-04-28T18:00:00+07:00",
+      "last_run_at": "2026-04-27T18:14:28.047807+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318816"
+    },
+    {
+      "id": "9ffcfefdd2f1",
+      "name": "pipe-tech-debt",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh tech-debt-review",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 7 * * 2,4",
+        "display": "0 7 * * 2,4"
+      },
+      "schedule_display": "0 7 * * 2,4",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:12.802448+07:00",
+      "next_run_at": "2026-04-28T07:00:00+07:00",
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318834"
+    },
+    {
+      "id": "f28d48440193",
+      "name": "pipe-okr-review",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh okr-review",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 17 * * 5",
+        "display": "0 17 * * 5"
+      },
+      "schedule_display": "0 17 * * 5",
+      "repeat": {
+        "times": null,
+        "completed": 1
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:12.936139+07:00",
+      "next_run_at": "2026-05-01T17:00:00+07:00",
+      "last_run_at": "2026-04-24T17:00:41.112467+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318851"
+    },
+    {
+      "id": "8000d1d97af0",
+      "name": "pipe-mobile-eng",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh mobile-eng",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 12 * * *",
+        "display": "0 12 * * *"
+      },
+      "schedule_display": "0 12 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 3
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:13.069165+07:00",
+      "next_run_at": "2026-04-28T12:00:00+07:00",
+      "last_run_at": "2026-04-27T12:25:39.834340+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318868"
+    },
+    {
+      "id": "4d62141e9b3e",
+      "name": "pipe-release-eng",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh release-eng",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 19 * * 1,4",
+        "display": "0 19 * * 1,4"
+      },
+      "schedule_display": "0 19 * * 1,4",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:13.201605+07:00",
+      "next_run_at": "2026-04-30T19:00:00+07:00",
+      "last_run_at": "2026-04-27T20:02:41.199603+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318885"
+    },
+    {
+      "id": "d716612599f9",
+      "name": "pipe-observability",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh observability-eng",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 0 * * *",
+        "display": "0 0 * * *"
+      },
+      "schedule_display": "0 0 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 6
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:13.329680+07:00",
+      "next_run_at": "2026-04-29T00:00:00+07:00",
+      "last_run_at": "2026-04-28T00:13:25.403237+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318902"
+    },
+    {
+      "id": "058d859f7341",
+      "name": "pipe-cost-finops",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh cost-finops",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 22 * * *",
+        "display": "0 22 * * *"
+      },
+      "schedule_display": "0 22 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 3
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:13.458619+07:00",
+      "next_run_at": "2026-04-28T22:00:00+07:00",
+      "last_run_at": "2026-04-27T22:41:56.920588+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318919"
+    },
+    {
+      "id": "e4a6a8712dca",
+      "name": "keep-alive-local",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "keep-alive-local.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/3 * * * *",
+        "display": "*/3 * * * *"
+      },
+      "schedule_display": "*/3 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 289
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:13.604909+07:00",
+      "next_run_at": "2026-04-28T00:09:00+07:00",
+      "last_run_at": "2026-04-27T10:17:06.911689+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null
+    },
+    {
+      "id": "3e3b2e10525b",
+      "name": "pipe-qwen-coder-reviewer",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "qwen-coder-reviewer.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/10 * * * *",
+        "display": "*/10 * * * *"
+      },
+      "schedule_display": "*/10 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 122
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:13.731056+07:00",
+      "next_run_at": "2026-04-28T00:10:00+07:00",
+      "last_run_at": "2026-04-27T10:11:50.240727+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318936"
+    },
+    {
+      "id": "fce6bcf024cb",
+      "name": "pipe-auto-healer",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "claude-auto-healer.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/10 * * * *",
+        "display": "*/10 * * * *"
+      },
+      "schedule_display": "*/10 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 123
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:13.859399+07:00",
+      "next_run_at": "2026-04-28T00:10:00+07:00",
+      "last_run_at": "2026-04-27T10:11:48.101148+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318954"
+    },
+    {
+      "id": "ef1527a39234",
+      "name": "pipe-pain-research",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh pain-research",
+      "schedule": {
+        "kind": "cron",
+        "expr": "5 */4 * * *",
+        "display": "5 */4 * * *"
+      },
+      "schedule_display": "5 */4 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 16
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:13.988673+07:00",
+      "next_run_at": "2026-04-28T04:05:00+07:00",
+      "last_run_at": "2026-04-27T20:37:11.779854+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318971"
+    },
+    {
+      "id": "b3a66808589e",
+      "name": "pipe-design-think",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh design-thinking",
+      "schedule": {
+        "kind": "cron",
+        "expr": "20 */4 * * *",
+        "display": "20 */4 * * *"
+      },
+      "schedule_display": "20 */4 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 18
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:14.117537+07:00",
+      "next_run_at": "2026-04-28T00:20:00+07:00",
+      "last_run_at": "2026-04-27T20:26:48.414176+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.318990"
+    },
+    {
+      "id": "3e61ca32820f",
+      "name": "pipe-market-analy",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh market-analysis",
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 7 * * *",
+        "display": "30 7 * * *"
+      },
+      "schedule_display": "30 7 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 1
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:14.250180+07:00",
+      "next_run_at": "2026-04-28T07:30:00+07:00",
+      "last_run_at": "2026-04-24T07:30:33.358649+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319007"
+    },
+    {
+      "id": "35cd22faefd9",
+      "name": "pipe-bmc-builder",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh bmc-builder",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8 * * *",
+        "display": "0 8 * * *"
+      },
+      "schedule_display": "0 8 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 3
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:14.381318+07:00",
+      "next_run_at": "2026-04-28T08:00:00+07:00",
+      "last_run_at": "2026-04-27T21:39:19.093924+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319025"
+    },
+    {
+      "id": "7e1e9dd567b9",
+      "name": "pipe-ba-requirement",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh ba-requirements",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 9 * * *",
+        "display": "0 9 * * *"
+      },
+      "schedule_display": "0 9 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:14.507339+07:00",
+      "next_run_at": "2026-04-28T09:00:00+07:00",
+      "last_run_at": "2026-04-26T13:35:38.483776+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319042"
+    },
+    {
+      "id": "728f1f5d8086",
+      "name": "pipe-sa-spec",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh sa-technical-spec",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 10 * * *",
+        "display": "0 10 * * *"
+      },
+      "schedule_display": "0 10 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 3
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:14.636071+07:00",
+      "next_run_at": "2026-04-28T10:00:00+07:00",
+      "last_run_at": "2026-04-27T10:09:27.221827+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319059"
+    },
+    {
+      "id": "ccabae70a8a2",
+      "name": "pipe-story-breakdown",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agent-runner.sh story-breakdown",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 11 * * *",
+        "display": "0 11 * * *"
+      },
+      "schedule_display": "0 11 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 4
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:14.764242+07:00",
+      "next_run_at": "2026-04-28T11:00:00+07:00",
+      "last_run_at": "2026-04-27T12:12:01.154260+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319076"
+    },
+    {
+      "id": "ac57201e6623",
+      "name": "pipe-qwen-validator",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "qwen-code-validator.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
+      },
+      "schedule_display": "*/5 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 188
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:14.893549+07:00",
+      "next_run_at": "2026-04-28T00:10:00+07:00",
+      "last_run_at": "2026-04-27T10:41:27.835687+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319093"
+    },
+    {
+      "id": "d74b02bcb582",
+      "name": "pipe-auto-commit-qwen",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "claude-auto-commit-qwen.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/20 * * * *",
+        "display": "*/20 * * * *"
+      },
+      "schedule_display": "*/20 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 85
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:15.017949+07:00",
+      "next_run_at": "2026-04-28T00:20:00+07:00",
+      "last_run_at": "2026-04-27T20:43:12.316127+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319111"
+    },
+    {
+      "id": "31a035ea8f60",
+      "name": "pipe-dev-github",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "dev-cloud-worker.sh github",
+      "schedule": {
+        "kind": "cron",
+        "expr": "11,31,51 * * * *",
+        "display": "11,31,51 * * * *"
+      },
+      "schedule_display": "11,31,51 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 77
+      },
+      "enabled": false,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": "budget-throttle: CRITICAL at 182.0%",
+      "created_at": "2026-04-23T10:31:15.146889+07:00",
+      "next_run_at": "2026-04-27T20:51:00+07:00",
+      "last_run_at": "2026-04-27T18:14:45.734917+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319128"
+    },
+    {
+      "id": "03553d646488",
+      "name": "pipe-dev-cloudflare",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "dev-cloud-worker.sh cloudflare",
+      "schedule": {
+        "kind": "cron",
+        "expr": "4,9,14,19,24,29,34,39,44,49,54,59 * * * *",
+        "display": "4,9,14,19,24,29,34,39,44,49,54,59 * * * *"
+      },
+      "schedule_display": "4,9,14,19,24,29,34,39,44,49,54,59 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 209
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:15.276608+07:00",
+      "next_run_at": "2026-04-28T00:09:00+07:00",
+      "last_run_at": "2026-04-27T10:45:18.335972+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319145"
+    },
+    {
+      "id": "a6163ea1548f",
+      "name": "pipe-dev-groq",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "dev-cloud-worker.sh groq",
+      "schedule": {
+        "kind": "cron",
+        "expr": "1,4,7,10,13,16,19,22,25,28,31,34,37,40,43,46,49,52,55,58 * * * *",
+        "display": "1,4,7,10,13,16,19,22,25,28,31,34,37,40,43,46,49,52,55,58 * * * *"
+      },
+      "schedule_display": "1,4,7,10,13,16,19,22,25,28,31,34,37,40,43,46,49,52,55,58 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 304
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:15.405982+07:00",
+      "next_run_at": "2026-04-28T00:07:00+07:00",
+      "last_run_at": "2026-04-27T10:36:31.005717+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319162"
+    },
+    {
+      "id": "3a0c4c0764f1",
+      "name": "pipe-auto-dream",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "auto-dream.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "10 3,15 * * *",
+        "display": "10 3,15 * * *"
+      },
+      "schedule_display": "10 3,15 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 6
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:15.537356+07:00",
+      "next_run_at": "2026-04-28T03:10:00+07:00",
+      "last_run_at": "2026-04-27T15:46:41.514074+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319179"
+    },
+    {
+      "id": "90517c824a0a",
+      "name": "pipe-auto-graduate",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "auto-graduate.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "25 3,15 * * *",
+        "display": "25 3,15 * * *"
+      },
+      "schedule_display": "25 3,15 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 6
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:15.674732+07:00",
+      "next_run_at": "2026-04-28T03:25:00+07:00",
+      "last_run_at": "2026-04-27T15:46:16.640107+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319196"
+    },
+    {
+      "id": "15f82ecb03bf",
+      "name": "pipe-secret-scan",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "qwen-secret-scan.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
+      },
+      "schedule_display": "*/5 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 187
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:15.806401+07:00",
+      "next_run_at": "2026-04-28T00:10:00+07:00",
+      "last_run_at": "2026-04-27T10:36:00.022027+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319212"
+    },
+    {
+      "id": "13d3481026e4",
+      "name": "pipe-docker-sandbox",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "qwen-docker-runner.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/7 * * * *",
+        "display": "*/7 * * * *"
+      },
+      "schedule_display": "*/7 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 164
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:16.026132+07:00",
+      "next_run_at": "2026-04-28T00:07:00+07:00",
+      "last_run_at": "2026-04-27T13:51:31.269568+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319229"
+    },
+    {
+      "id": "c020cbe06e87",
+      "name": "pipe-tournament-review",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "qwen-tournament-review.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/15 * * * *",
+        "display": "*/15 * * * *"
+      },
+      "schedule_display": "*/15 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 94
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:16.175688+07:00",
+      "next_run_at": "2026-04-28T00:15:00+07:00",
+      "last_run_at": "2026-04-27T20:08:08.082541+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319246"
+    },
+    {
+      "id": "e6dd5bc63554",
+      "name": "pipe-budget-tracker",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "budget-tracker.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/30 * * * *",
+        "display": "*/30 * * * *"
+      },
+      "schedule_display": "*/30 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 65
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:16.302072+07:00",
+      "next_run_at": "2026-04-28T00:30:00+07:00",
+      "last_run_at": "2026-04-27T23:46:04.733894+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319263"
+    },
+    {
+      "id": "c662bf6b88d7",
+      "name": "pipe-dashboard",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "dashboard-generate.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
+      },
+      "schedule_display": "*/5 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 187
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:16.429646+07:00",
+      "next_run_at": "2026-04-28T00:10:00+07:00",
+      "last_run_at": "2026-04-27T10:42:28.737007+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319280"
+    },
+    {
+      "id": "a2c97b112864",
+      "name": "pipe-mirror-sync",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "mirror-sync-to-github.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/15 * * * *",
+        "display": "*/15 * * * *"
+      },
+      "schedule_display": "*/15 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 96
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:16.564083+07:00",
+      "next_run_at": "2026-04-28T00:15:00+07:00",
+      "last_run_at": "2026-04-27T20:07:23.130466+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319298"
+    },
+    {
+      "id": "4062728e9fd4",
+      "name": "scrape-changelogs",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "scrape-changelogs.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */3 * * *",
+        "display": "0 */3 * * *"
+      },
+      "schedule_display": "0 */3 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 19
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:16.707448+07:00",
+      "next_run_at": "2026-04-28T03:00:00+07:00",
+      "last_run_at": "2026-04-28T00:07:24.624909+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null
+    },
+    {
+      "id": "3be29501ab3c",
+      "name": "scrape-podcasts",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "scrape-podcast-transcripts.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 */6 * * *",
+        "display": "30 */6 * * *"
+      },
+      "schedule_display": "30 */6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 12
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:16.849967+07:00",
+      "next_run_at": "2026-04-28T00:30:00+07:00",
+      "last_run_at": "2026-04-27T19:47:22.105585+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null
+    },
+    {
+      "id": "e5938d77e7f7",
+      "name": "scrape-youtube",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "scrape-youtube-transcripts.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "45 */6 * * *",
+        "display": "45 */6 * * *"
+      },
+      "schedule_display": "45 */6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 11
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:16.984232+07:00",
+      "next_run_at": "2026-04-28T00:45:00+07:00",
+      "last_run_at": "2026-04-27T19:47:19.093597+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null
+    },
+    {
+      "id": "262ccf936ddc",
+      "name": "pipe-axentx-backup",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "axentx-backup-sync.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "7,22,37,52 * * * *",
+        "display": "7,22,37,52 * * * *"
+      },
+      "schedule_display": "7,22,37,52 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 92
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:17.118045+07:00",
+      "next_run_at": "2026-04-28T00:07:00+07:00",
+      "last_run_at": "2026-04-27T18:22:54.539323+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319317"
+    },
+    {
+      "id": "1724af16bf1c",
+      "name": "pipe-db-snapshot",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "db-snapshot-backup.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 4 * * *",
+        "display": "0 4 * * *"
+      },
+      "schedule_display": "0 4 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:17.254012+07:00",
+      "next_run_at": "2026-04-28T04:00:00+07:00",
+      "last_run_at": "2026-04-25T05:13:58.577417+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319335"
+    },
+    {
+      "id": "bcef99d0a0f9",
+      "name": "pipe-opus-pr-review",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "opus-pr-reviewer.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "15,45 * * * *",
+        "display": "15,45 * * * *"
+      },
+      "schedule_display": "15,45 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 73
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:17.392536+07:00",
+      "next_run_at": "2026-04-28T00:15:00+07:00",
+      "last_run_at": "2026-04-27T23:39:28.610993+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319352"
+    },
+    {
+      "id": "88bc7eba7559",
+      "name": "pipe-budget-throttle",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "budget-auto-throttle.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "33 * * * *",
+        "display": "33 * * * *"
+      },
+      "schedule_display": "33 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 44
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:17.530708+07:00",
+      "next_run_at": "2026-04-28T00:33:00+07:00",
+      "last_run_at": "2026-04-27T23:46:48.682485+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319369"
+    },
+    {
+      "id": "05e002133ffa",
+      "name": "pipe-tournament-synthesis",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "tournament-synthesis.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "25,55 * * * *",
+        "display": "25,55 * * * *"
+      },
+      "schedule_display": "25,55 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 68
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:17.670249+07:00",
+      "next_run_at": "2026-04-28T00:25:00+07:00",
+      "last_run_at": "2026-04-28T00:08:50.849469+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319386"
+    },
+    {
+      "id": "6c36dd8029ec",
+      "name": "pipe-cross-project-share",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "cross-project-pattern-share.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "17 */2 * * *",
+        "display": "17 */2 * * *"
+      },
+      "schedule_display": "17 */2 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 26
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:17.805430+07:00",
+      "next_run_at": "2026-04-28T00:17:00+07:00",
+      "last_run_at": "2026-04-27T22:27:22.038212+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319403"
+    },
+    {
+      "id": "41138f1ab410",
+      "name": "pipe-memkraft-log",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "memkraft-bitemporal-log.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "47 */2 * * *",
+        "display": "47 */2 * * *"
+      },
+      "schedule_display": "47 */2 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 25
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:17.934693+07:00",
+      "next_run_at": "2026-04-28T00:47:00+07:00",
+      "last_run_at": "2026-04-27T22:53:28.343430+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319420"
+    },
+    {
+      "id": "7c18d354d5d0",
+      "name": "pipe-gepa-capture",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "gepa-trajectory-capture.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "19,49 * * * *",
+        "display": "19,49 * * * *"
+      },
+      "schedule_display": "19,49 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 66
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:18.061922+07:00",
+      "next_run_at": "2026-04-28T00:19:00+07:00",
+      "last_run_at": "2026-04-27T22:04:54.752550+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319437"
+    },
+    {
+      "id": "4115e0931ea4",
+      "name": "pipe-gepa-evolve",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "gepa-prompt-evolve.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 3 * * 0",
+        "display": "0 3 * * 0"
+      },
+      "schedule_display": "0 3 * * 0",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:18.191360+07:00",
+      "next_run_at": "2026-05-03T03:00:00+07:00",
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319493"
+    },
+    {
+      "id": "009a41fc40ea",
+      "name": "pipe-agentevals-score",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "agentevals-trajectory-score.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/9 * * * *",
+        "display": "*/9 * * * *"
+      },
+      "schedule_display": "*/9 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 126
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:18.318510+07:00",
+      "next_run_at": "2026-04-28T00:09:00+07:00",
+      "last_run_at": "2026-04-27T10:13:03.429081+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319510"
+    },
+    {
+      "id": "afce9a5f9217",
+      "name": "pipe-magma-graph",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "magma-graph-enrich.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "12,42 * * * *",
+        "display": "12,42 * * * *"
+      },
+      "schedule_display": "12,42 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 70
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:18.448622+07:00",
+      "next_run_at": "2026-04-28T00:12:00+07:00",
+      "last_run_at": "2026-04-27T23:17:25.418418+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319527"
+    },
+    {
+      "id": "7170106741e2",
+      "name": "pipe-dynadebate-verify",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "dynadebate-verifier.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/25 * * * *",
+        "display": "*/25 * * * *"
+      },
+      "schedule_display": "*/25 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 71
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T10:31:18.582304+07:00",
+      "next_run_at": "2026-04-28T00:25:00+07:00",
+      "last_run_at": "2026-04-27T21:59:04.158689+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319544"
+    },
+    {
+      "id": "91dc35cf38e7",
+      "name": "pipe-self-refactor",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "self-refactor-opus.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 4 * * 0",
+        "display": "0 4 * * 0"
+      },
+      "schedule_display": "0 4 * * 0",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T11:33:18.845383+07:00",
+      "next_run_at": "2026-05-03T04:00:00+07:00",
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319561"
+    },
+    {
+      "id": "9dad63400e04",
+      "name": "pipe-semantic-dedup",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "semantic-rag-dedup.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "17 3 * * *",
+        "display": "17 3 * * *"
+      },
+      "schedule_display": "17 3 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 2
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T11:33:18.981029+07:00",
+      "next_run_at": "2026-04-28T03:17:00+07:00",
+      "last_run_at": "2026-04-25T05:13:57.535868+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319578"
+    },
+    {
+      "id": "fd742a413e4b",
+      "name": "pipe-active-learning",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "active-learning-from-rejects.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/30 * * * *",
+        "display": "*/30 * * * *"
+      },
+      "schedule_display": "*/30 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 66
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T11:33:19.100939+07:00",
+      "next_run_at": "2026-04-28T00:30:00+07:00",
+      "last_run_at": "2026-04-28T00:05:17.925563+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319595"
+    },
+    {
+      "id": "37444c6b065d",
+      "name": "pipe-token-budget",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "worker-token-budget.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/15 * * * *",
+        "display": "*/15 * * * *"
+      },
+      "schedule_display": "*/15 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 94
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T11:33:19.218125+07:00",
+      "next_run_at": "2026-04-28T00:15:00+07:00",
+      "last_run_at": "2026-04-27T20:14:07.511209+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319612"
+    },
+    {
+      "id": "fbe687fadd5e",
+      "name": "pipe-work-queue-producer",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "work-queue-producer.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/2 * * * *",
+        "display": "*/2 * * * *"
+      },
+      "schedule_display": "*/2 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 403
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T12:02:14.007401+07:00",
+      "next_run_at": "2026-04-28T00:08:00+07:00",
+      "last_run_at": "2026-04-27T11:02:24.357596+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319629"
+    },
+    {
+      "id": "849754115e9f",
+      "name": "pipe-embed-on-ingest",
+      "prompt": "",
+      "skills": [
+        "self-improvement"
+      ],
+      "skill": "self-improvement",
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "embed-doc-on-ingest.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/10 * * * *",
+        "display": "*/10 * * * *"
+      },
+      "schedule_display": "*/10 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 122
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T12:02:14.169119+07:00",
+      "next_run_at": "2026-04-28T00:10:00+07:00",
+      "last_run_at": "2026-04-27T10:13:00.593967+07:00",
+      "last_status": "ok",
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": null,
+      "updated_at": "2026-04-23T13:02:37.319645"
+    },
+    {
+      "id": "866e324ecf42",
+      "name": "pipe-spec-generator",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/spec-generator.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/15 * * * *",
+        "display": "*/15 * * * *"
+      },
+      "schedule_display": "*/15 * * * *",
+      "enabled": true,
+      "deliver": "local",
+      "last_run_at": null,
+      "updated_at": "2026-04-24T10:51:40.135721",
+      "origin": "user-manual",
+      "state": "scheduled",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "last_status": null,
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T16:30:00+07:00",
+      "next_run_at": null,
+      "last_error": null,
+      "last_delivery_error": null
+    },
+    {
+      "id": "338636d55fc9",
+      "name": "pipe-bd-continuous",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/bd-continuous-runner.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "5 */2 * * *",
+        "display": "5 */2 * * *"
+      },
+      "schedule_display": "5 */2 * * *",
+      "enabled": true,
+      "deliver": "local",
+      "last_run_at": null,
+      "next_run_at": null,
+      "updated_at": "2026-04-24T10:51:40.135743",
+      "origin": "user-manual",
+      "state": "scheduled",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "paused_at": null,
+      "paused_reason": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "created_at": "2026-04-23T17:00:00+07:00"
+    },
+    {
+      "id": "b66065ffeae6",
+      "name": "pipe-bd-theme-refill",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/bd-theme-refill.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "45 */4 * * *",
+        "display": "45 */4 * * *"
+      },
+      "schedule_display": "45 */4 * * *",
+      "enabled": true,
+      "deliver": "local",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "last_run_at": null,
+      "next_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "state": "scheduled",
+      "origin": "user-manual",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T17:00:00+07:00",
+      "updated_at": "2026-04-24T10:51:40.135764"
+    },
+    {
+      "id": "d7acf10c4871",
+      "name": "pipe-bd-news-scraper",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/bd-news-scraper.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "25 */6 * * *",
+        "display": "25 */6 * * *"
+      },
+      "schedule_display": "25 */6 * * *",
+      "enabled": true,
+      "deliver": "local",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "last_run_at": null,
+      "next_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "state": "scheduled",
+      "origin": "user-manual",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T17:00:00+07:00",
+      "updated_at": "2026-04-24T10:51:40.135782"
+    },
+    {
+      "id": "1690db6a85f3",
+      "name": "pipe-bd-cross-chain",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/bd-cross-chain.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "10,40 * * * *",
+        "display": "10,40 * * * *"
+      },
+      "schedule_display": "10,40 * * * *",
+      "enabled": true,
+      "deliver": "local",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "last_run_at": null,
+      "next_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "state": "scheduled",
+      "origin": "user-manual",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T17:40:00+07:00",
+      "updated_at": "2026-04-24T10:51:40.135799"
+    },
+    {
+      "id": "2151b85e27cf",
+      "name": "pipe-bd-orchestrator-flag",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/bd-orchestrator-flagger.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "20 * * * *",
+        "display": "20 * * * *"
+      },
+      "schedule_display": "20 * * * *",
+      "enabled": true,
+      "deliver": "local",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "last_run_at": null,
+      "next_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "state": "scheduled",
+      "origin": "user-manual",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T17:40:00+07:00",
+      "updated_at": "2026-04-24T10:51:40.135817"
+    },
+    {
+      "id": "ed4d56d4c306",
+      "name": "pipe-bd-orchestrator-dispatch",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/bd-orchestrator-dispatch.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 */3 * * *",
+        "display": "30 */3 * * *"
+      },
+      "schedule_display": "30 */3 * * *",
+      "enabled": true,
+      "deliver": "local",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "last_run_at": null,
+      "next_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "state": "scheduled",
+      "origin": "user-manual",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T17:50:00+07:00",
+      "updated_at": "2026-04-24T10:51:40.135834"
+    },
+    {
+      "id": "cdc892265af9",
+      "name": "pipe-bd-orchestrator-run",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/bd-orchestrator-runner.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "35 */3 * * *",
+        "display": "35 */3 * * *"
+      },
+      "schedule_display": "35 */3 * * *",
+      "enabled": true,
+      "deliver": "local",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "last_run_at": null,
+      "next_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "state": "scheduled",
+      "origin": "user-manual",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T17:50:00+07:00",
+      "updated_at": "2026-04-24T10:51:40.135854"
+    },
+    {
+      "id": "d6f8769b20c0",
+      "name": "pipe-regenerate-on-rework",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/regenerate-on-rework.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/20 * * * *",
+        "display": "*/20 * * * *"
+      },
+      "schedule_display": "*/20 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T22:25:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": "2026-04-24T10:51:40.135875"
+    },
+    {
+      "id": "def75b0b214e",
+      "name": "pipe-kg-ingest",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/knowledge-graph-ingest.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
+      },
+      "schedule_display": "*/5 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T22:55:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": "2026-04-24T10:51:40.135895"
+    },
+    {
+      "id": "3d3a32ed8b03",
+      "name": "pipe-local-merge",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/local-merge-to-main.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "55 * * * *",
+        "display": "55 * * * *"
+      },
+      "schedule_display": "55 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T23:10:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": "2026-04-24T10:51:40.135914"
+    },
+    {
+      "id": "a67c8c22f5a4",
+      "name": "pipe-scraped-to-surrogate",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/scraped-to-surrogate.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "17 */2 * * *",
+        "display": "17 */2 * * *"
+      },
+      "schedule_display": "17 */2 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T23:20:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": "2026-04-24T10:51:40.135932"
+    },
+    {
+      "id": "64e3a0b1a2cd",
+      "name": "pipe-surrogate-upgrade",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/surrogate-auto-upgrade.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
+      },
+      "schedule_display": "*/5 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": false,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": "user-decision 2026-04-24: keep qwen2.5-coder:7b for now, cloud deploy planned",
+      "created_at": "2026-04-23T23:48:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": null
+    },
+    {
+      "id": "73d1f35496d7",
+      "name": "scrape-cve-kev",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "/Users/Ashira/.hermes/scripts/scrape-cve-kev.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */6 * * *",
+        "display": "0 */6 * * *"
+      },
+      "schedule_display": "0 */6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T23:58:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": null
+    },
+    {
+      "id": "fd26b57b263a",
+      "name": "scrape-mitre-attack",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "/Users/Ashira/.hermes/scripts/scrape-mitre-attack.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 6 * * *",
+        "display": "0 6 * * *"
+      },
+      "schedule_display": "0 6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T23:58:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": null
+    },
+    {
+      "id": "5e59b12e4019",
+      "name": "scrape-postmortems",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "/Users/Ashira/.hermes/scripts/scrape-postmortems.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 4,16 * * *",
+        "display": "0 4,16 * * *"
+      },
+      "schedule_display": "0 4,16 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-23T23:58:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": null
+    },
+    {
+      "id": "c1414b714287",
+      "name": "scrape-owasp",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "/Users/Ashira/.hermes/scripts/scrape-owasp.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 3 * * 1,4",
+        "display": "0 3 * * 1,4"
+      },
+      "schedule_display": "0 3 * * 1,4",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-24T00:05:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": null
+    },
+    {
+      "id": "12a51a2c454b",
+      "name": "scrape-anthropic-cookbook",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "/Users/Ashira/.hermes/scripts/scrape-anthropic-cookbook.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 5 * * 2,5",
+        "display": "0 5 * * 2,5"
+      },
+      "schedule_display": "0 5 * * 2,5",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-24T00:05:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": null
+    },
+    {
+      "id": "0042200c4849",
+      "name": "scrape-google-sre",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "/Users/Ashira/.hermes/scripts/scrape-google-sre.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 7 * * 3,6",
+        "display": "0 7 * * 3,6"
+      },
+      "schedule_display": "0 7 * * 3,6",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-24T00:05:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": null
+    },
+    {
+      "id": "1d31b9865921",
+      "name": "scrape-aws-wa",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "/Users/Ashira/.hermes/scripts/scrape-aws-wa.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 9 * * 1,4",
+        "display": "0 9 * * 1,4"
+      },
+      "schedule_display": "0 9 * * 1,4",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-24T00:05:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": null
+    },
+    {
+      "id": "4cf21937b583",
+      "name": "scrape-observability",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "/Users/Ashira/.hermes/scripts/scrape-observability.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8 * * 1,5",
+        "display": "0 8 * * 1,5"
+      },
+      "schedule_display": "0 8 * * 1,5",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-24T00:10:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": null
+    },
+    {
+      "id": "b9cf97b0f536",
+      "name": "scrape-firecrawl",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "/Users/Ashira/.hermes/scripts/scrape-firecrawl.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "17 * * * *",
+        "display": "17 * * * *"
+      },
+      "schedule_display": "17 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-24T00:15:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": null
+    },
+    {
+      "id": "7e34ff3a180f",
+      "name": "firecrawl-credit-monitor",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": null,
+      "provider": null,
+      "base_url": null,
+      "script": "/Users/Ashira/.hermes/scripts/firecrawl-credit-monitor.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */6 * * *",
+        "display": "0 */6 * * *"
+      },
+      "schedule_display": "0 */6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-24T00:55:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": null
+    },
+    {
+      "id": "ecb4f09101f7",
+      "name": "pipe-hermes-trace-recorder",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "/Users/Ashira/.claude/bin/hermes-trace-recorder.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "23 */2 * * *",
+        "display": "23 */2 * * *"
+      },
+      "schedule_display": "23 */2 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 0
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-24T01:05:00+07:00",
+      "next_run_at": null,
+      "last_run_at": null,
+      "last_status": null,
+      "last_error": null,
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "user-manual",
+      "updated_at": "2026-04-24T10:51:40.135950"
+    },
+    {
+      "id": "651c44171323",
+      "name": "pipe-crawl4ai-agent",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "crawl4ai-agent.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
+      },
+      "schedule_display": "*/5 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 88
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-24T07:44:33.874197+07:00",
+      "next_run_at": "2026-04-28T00:10:00+07:00",
+      "last_run_at": "2026-04-27T10:35:21.095033+07:00",
+      "last_status": "error",
+      "last_error": "'str' object has no attribute 'get'",
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "manual",
+      "updated_at": "2026-04-24T10:51:40.135968",
+      "timeout_sec": 240,
+      "tags": [
+        "crawler",
+        "ingest",
+        "local-llm",
+        "surrogate-feed"
+      ]
+    },
+    {
+      "id": "80322abb896c",
+      "name": "pipe-sync-code-to-fts",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "sync-code-to-fts.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "15 */6 * * *",
+        "display": "15 */6 * * *"
+      },
+      "schedule_display": "15 */6 * * *",
+      "repeat": {
+        "times": null,
+        "completed": 11
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-24T09:24:32.976691+07:00",
+      "next_run_at": "2026-04-28T00:15:00+07:00",
+      "last_run_at": "2026-04-27T18:29:43.704670+07:00",
+      "last_status": "error",
+      "last_error": "'str' object has no attribute 'get'",
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "manual",
+      "updated_at": "2026-04-24T10:51:40.135988",
+      "timeout_sec": 600,
+      "tags": [
+        "sync",
+        "code",
+        "rag"
+      ]
+    },
+    {
+      "id": "30015c4646fe",
+      "name": "pipe-chroma-to-pairs",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "chroma-to-training-pairs.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/10 * * * *",
+        "display": "*/10 * * * *"
+      },
+      "schedule_display": "*/10 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 49
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-24T10:32:20.747317+07:00",
+      "next_run_at": "2026-04-28T00:10:00+07:00",
+      "last_run_at": "2026-04-27T10:11:48.174632+07:00",
+      "last_status": "error",
+      "last_error": "'str' object has no attribute 'get'",
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "manual",
+      "updated_at": "2026-04-24T10:51:40.136008",
+      "timeout_sec": 300,
+      "tags": [
+        "training-data",
+        "scrape"
+      ]
+    },
+    {
+      "id": "05e8af8e888b",
+      "name": "pipe-github-bulk-train",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "github-bulk-train-scrape.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/15 * * * *",
+        "display": "*/15 * * * *"
+      },
+      "schedule_display": "*/15 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 36
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-24T10:32:20.747317+07:00",
+      "next_run_at": "2026-04-28T00:15:00+07:00",
+      "last_run_at": "2026-04-27T20:11:17.577810+07:00",
+      "last_status": "error",
+      "last_error": "'str' object has no attribute 'get'",
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "manual",
+      "updated_at": "2026-04-24T10:51:40.136026",
+      "timeout_sec": 600,
+      "tags": [
+        "training-data",
+        "scrape"
+      ]
+    },
+    {
+      "id": "7d0ec6245137",
+      "name": "pipe-bulk-scrape-burst",
+      "prompt": "",
+      "skills": [],
+      "skill": null,
+      "model": "openai/gpt-oss-120b:free",
+      "provider": "openrouter",
+      "base_url": null,
+      "script": "bulk-scrape-burst.sh",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/20 * * * *",
+        "display": "*/20 * * * *"
+      },
+      "schedule_display": "*/20 * * * *",
+      "repeat": {
+        "times": null,
+        "completed": 24
+      },
+      "enabled": true,
+      "state": "scheduled",
+      "paused_at": null,
+      "paused_reason": null,
+      "created_at": "2026-04-24T13:37:56.692461+07:00",
+      "next_run_at": "2026-04-28T00:20:00+07:00",
+      "last_run_at": "2026-04-28T00:08:50.944625+07:00",
+      "last_status": "error",
+      "last_error": "'str' object has no attribute 'get'",
+      "last_delivery_error": null,
+      "deliver": "local",
+      "origin": "manual",
+      "updated_at": "2026-04-24T14:04:50.653410",
+      "timeout_sec": 900,
+      "tags": [
+        "training-data",
+        "bulk",
+        "parallel"
+      ]
+    },
+    {
+      "id": "dataset-enrich-cron",
+      "name": "dataset-enrich (every 30 min)",
+      "schedule": {
+        "expr": "*/30 * * * *"
+      },
+      "script": "/opt/surrogate-1-harvest/bin/dataset-enrich.sh",
+      "enabled": true,
+      "deliver": "local"
+    },
+    {
+      "id": "dataset-mirror-cron",
+      "name": "dataset-mirror (every 6h)",
+      "schedule": {
+        "expr": "0 */6 * * *"
+      },
+      "script": "/opt/surrogate-1-harvest/bin/dataset-mirror.sh",
+      "enabled": true,
+      "deliver": "local"
+    },
+    {
+      "id": "lightning-trainer-cron",
+      "name": "lightning-trainer (daily 02:00 UTC)",
+      "schedule": {
+        "expr": "0 2 * * *"
+      },
+      "script": "/opt/surrogate-1-harvest/bin/lightning-trainer.sh",
+      "enabled": true,
+      "deliver": "local"
+    }
+  ],
+  "updated_at": "2026-04-28T00:13:25.403429+07:00"
+}

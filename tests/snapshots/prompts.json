@@ -1,0 +1,20 @@
+{
+  "axentx-architect-daemon.ARCH_SYSTEM": "80533f4e41db44bd",
+  "axentx-bd-daemon.BD_SYSTEM": "2421c6209e2b85fe",
+  "axentx-business-daemon.BUSINESS_SYSTEM": "326c5f62b001ba30",
+  "axentx-content-daemon.CONTENT_SYSTEM": "8f509bd855cc09db",
+  "axentx-design-thinking-daemon.DESIGN_SYSTEM": "48db23f62447af3b",
+  "axentx-dev-daemon.DEV_SYSTEM": "db7ba6cf7eb6b184",
+  "axentx-docs-daemon.DOCS_SYSTEM": "7de10313792bc3fc",
+  "axentx-marketing-daemon.MARKETING_SYSTEM": "4a37edfb4e1f3ed8",
+  "axentx-perf-daemon.PERF_SYSTEM": "5ebbdf684b0d3e4c",
+  "axentx-pm-daemon.PM_SYSTEM": "97c14499f7c6df36",
+  "axentx-prd-daemon.PRD_SYSTEM": "1028a4a476ecf5a4",
+  "axentx-qa-daemon.QA_SYSTEM": "90ff31d2ba18bfab",
+  "axentx-release-daemon.REL_SYSTEM": "02789e5f493aa0cf",
+  "axentx-research-daemon.RESEARCH_SYSTEM": "3e16918c88b0d4ea",
+  "axentx-reviewer-daemon.REVIEWER_SYSTEM": "306e179e97d24aa5",
+  "axentx-security-daemon.SEC_SYSTEM": "59e60bbb5bcd9cb6",
+  "axentx-trends-daemon.TRENDS_SYSTEM": "02e5b09a8223d39c",
+  "axentx-ux-daemon.UX_SYSTEM": "4b0952f4fbd0ddd1"
+}

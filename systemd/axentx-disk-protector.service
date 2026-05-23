@@ -1,0 +1,8 @@
+[Unit]
+Description=axentx Disk Protector — clean stale queues + logs + git locks
+
+[Service]
+Type=oneshot
+ExecStart=/opt/surrogate-1-harvest/bin/axentx-disk-protector.sh
+StandardOutput=journal
+StandardError=journal

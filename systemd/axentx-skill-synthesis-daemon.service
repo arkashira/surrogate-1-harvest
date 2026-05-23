@@ -1,0 +1,19 @@
+[Unit]
+Description=axentx skill-synthesis — auto-installed 2026-05-23 (.sh wrapper)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+ExecStart=/bin/bash /opt/surrogate-1-harvest/bin/skill-synthesis-daemon.sh
+Restart=always
+RestartSec=30
+MemoryMax=256M
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

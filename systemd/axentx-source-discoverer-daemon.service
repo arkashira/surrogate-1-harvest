@@ -1,0 +1,22 @@
+[Unit]
+Description=axentx source-discoverer — multi-language deep-search for new pain sources
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=SOURCE_DISCOVER_POLL_SEC=1800
+ExecStart=/opt/surrogate-1-harvest/.venv/bin/python /opt/surrogate-1-harvest/bin/axentx-source-discoverer-daemon.py
+Restart=always
+RestartSec=300
+MemoryMax=192M
+TasksMax=16
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

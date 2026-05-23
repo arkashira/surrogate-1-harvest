@@ -1,0 +1,25 @@
+[Unit]
+Description=axentx Marketing Burst — generate ready-to-post copy + dashboard
+After=network-online.target axentx-live-deployer-daemon.service
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/surrogate-1-harvest
+EnvironmentFile=-/etc/surrogate-coordinator.env
+Environment=PYTHONUNBUFFERED=1
+Environment=REPO_ROOT=/opt/surrogate-1-harvest
+Environment=MARKET_CYCLE_SEC=3600
+Environment=MARKET_MIN_SCORE=30
+Environment=MARKET_MAX_PER_CYCLE=5
+ExecStart=/usr/bin/python3 /opt/surrogate-1-harvest/bin/axentx-marketing-burst-daemon.py
+Restart=on-failure
+RestartSec=20
+MemoryMax=384M
+Nice=15
+
+[Install]
+WantedBy=multi-user.target

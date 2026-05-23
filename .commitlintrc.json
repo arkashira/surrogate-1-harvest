@@ -1,0 +1,31 @@
+{
+  "extends": ["@commitlint/config-conventional"],
+  "rules": {
+    "type-enum": [
+      2,
+      "always",
+      [
+        "feat",
+        "fix",
+        "docs",
+        "style",
+        "refactor",
+        "perf",
+        "test",
+        "build",
+        "ci",
+        "chore",
+        "revert",
+        "agents",
+        "infra",
+        "data",
+        "rag"
+      ]
+    ],
+    "subject-case": [0],
+    "header-max-length": [2, "always", 100],
+    "body-max-line-length": [0],
+    "footer-max-line-length": [0]
+  },
+  "$comment": "ROADMAP-100 #10 — Conventional Commits enforced. Custom types 'agents'/'infra'/'data'/'rag' added for daemon/pipeline work. Subject-case relaxed for consistency with existing history."
+}

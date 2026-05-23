@@ -1,0 +1,105 @@
+name: Daily Tasks (RSS + Crawl + Sync)
+
+# Replaces three Mac LaunchAgents:
+#   com.ashira.crawl-rss        → rss job (every 4h)
+#   com.ashira.daily-crawl      → daily-crawl job (08:00 Bangkok = 01:00 UTC)
+#   org.ashira.sync-all-sources → sync job (twice daily)
+
+on:
+  schedule:
+    - cron: '5 */4 * * *'   # every 4h at :05 — RSS feed harvester
+    - cron: '0 1 * * *'     # 08:00 Bangkok daily — full daily crawl
+    - cron: '0 7,19 * * *'  # 14:00 + 02:00 Bangkok — sync-all-sources
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Job to run (rss / daily-crawl / sync-all)'
+        required: true
+        default: 'rss'
+        type: choice
+        options:
+          - rss
+          - daily-crawl
+          - sync-all
+
+concurrency:
+  group: daily-tasks-${{ github.event.schedule || github.event.inputs.job }}
+  cancel-in-progress: false
+
+jobs:
+  rss:
+    if: github.event.schedule == '5 */4 * * *' || github.event.inputs.job == 'rss'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - name: Install deps
+        run: pip install --quiet feedparser requests huggingface_hub
+      - name: RSS harvest
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          # Wraps the same crawl pattern as Mac com.ashira.crawl-rss
+          mkdir -p out/$(date +%Y-%m-%d)/raw
+          python3 bin/crawl-rss.py --out out/$(date +%Y-%m-%d)/raw/rss.jsonl --feeds bin/rss-feeds.txt
+      - name: Push to HF dataset
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python3 - <<'PYEOF'
+          import os, glob, time
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          files = sorted(glob.glob("out/**/raw/rss.jsonl", recursive=True))
+          if not files:
+              print("no rss output to push"); raise SystemExit(0)
+          last = files[-1]
+          ts = time.strftime("%Y-%m-%d/%H%M%S")
+          api.upload_file(
+              path_or_fileobj=last,
+              path_in_repo=f"rss/{ts}.jsonl",
+              repo_id="axentx/surrogate-1-rss-harvest",
+              repo_type="dataset",
+              commit_message=f"rss tick {ts}",
+          )
+          print(f"pushed {last}")
+          PYEOF
+
+  daily-crawl:
+    if: github.event.schedule == '0 1 * * *' || github.event.inputs.job == 'daily-crawl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - name: Run daily-crawl + transcripts
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          chmod +x bin/daily-crawl.sh 2>/dev/null
+          if [ -f bin/daily-crawl.sh ]; then
+            bash bin/daily-crawl.sh
+          else
+            echo "(stub) bin/daily-crawl.sh not yet ported from Mac — manual port needed"
+          fi
+
+  sync-all:
+    if: github.event.schedule == '0 7,19 * * *' || github.event.inputs.job == 'sync-all'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync sources (Obsidian Vault + memory + skills mirrors)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f bin/sync-all-sources.sh ]; then
+            bash bin/sync-all-sources.sh
+          else
+            echo "(stub) bin/sync-all-sources.sh not yet ported — manual port needed"
+          fi

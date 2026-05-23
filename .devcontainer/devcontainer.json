@@ -1,0 +1,64 @@
+{
+  "$comment": "ROADMAP-100 #87 — VS Code devcontainer. Cuts new-laptop setup from ~1h to ~5min. Python 3.13 + Node 22 + bash + the existing tools the harvest uses.",
+  "name": "surrogate-1-harvest",
+  "image": "mcr.microsoft.com/devcontainers/python:3.13-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": false,
+      "username": "vscode"
+    },
+    "ghcr.io/devcontainers/features/sshd:1": {}
+  },
+  "containerEnv": {
+    "REPO_ROOT": "/workspaces/surrogate-1-harvest",
+    "PYTHONUNBUFFERED": "1",
+    "PIP_DISABLE_PIP_VERSION_CHECK": "1"
+  },
+  "remoteEnv": {
+    "PATH": "${containerEnv:PATH}:/workspaces/surrogate-1-harvest/bin"
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/post-start.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "dbaeumer.vscode-eslint",
+        "GitHub.vscode-pull-request-github",
+        "GitHub.copilot",
+        "redhat.vscode-yaml",
+        "tamasfe.even-better-toml",
+        "cloudflare.vscode-cloudflare-workers"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.terminal.activateEnvironment": false,
+        "[python]": {
+          "editor.formatOnSave": true,
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        },
+        "files.exclude": {
+          "**/__pycache__": true,
+          "**/.pytest_cache": true
+        }
+      }
+    }
+  },
+  "mounts": [
+    "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,consistency=cached"
+  ],
+  "forwardPorts": [7860, 8787, 11434],
+  "portsAttributes": {
+    "7860": {"label": "hermes (HF Space app)", "onAutoForward": "notify"},
+    "8787": {"label": "wrangler dev (cf-worker)", "onAutoForward": "silent"},
+    "11434": {"label": "ollama LLM proxy", "onAutoForward": "silent", "visibility": "public"}
+  }
+}

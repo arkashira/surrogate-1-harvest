@@ -1,0 +1,41 @@
+# ROADMAP-100 #8 — Codeowners auto-routing per project.
+#
+# Reviewer agent reads this file to pick the right rubric for each diff.
+# Each pattern maps to a virtual reviewer profile (handled by reviewer-daemon
+# via team membership, not real users); humans only get pinged on explicit
+# escalation tags below.
+#
+# Format reference: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# ── Default ────────────────────────────────────────────────────────────────
+*                               @arkashira
+
+# ── Daemons (Python) — review under "agent-runtime" rubric ────────────────
+/bin/axentx-*-daemon.py         @arkashira
+/bin/axentx_pipeline.py         @arkashira
+/bin/*.py                       @arkashira
+/agents/                        @arkashira
+
+# ── Cloudflare Worker — review under "edge-service" rubric ────────────────
+/cf-worker/                     @arkashira
+
+# ── Infra-as-code (CF/IaC/systemd) — review under "ops" rubric ────────────
+/systemd/                       @arkashira
+/Dockerfile                     @arkashira
+/start.sh                       @arkashira
+/.github/workflows/             @arkashira
+
+# ── Docs — review under "tech-writer" rubric (lighter) ────────────────────
+/docs/                          @arkashira
+*.md                            @arkashira
+
+# ── Build/config — review under "tooling" rubric ──────────────────────────
+/configs/                       @arkashira
+/config/                        @arkashira
+/requirements.txt               @arkashira
+/.devcontainer/                 @arkashira
+
+# Notes for reviewer-daemon:
+#   - Owner @arkashira is the human escalation contact (single-maintainer org)
+#   - Stack-specific rubric is selected by the directory match, not the owner
+#   - Add per-repo CODEOWNERS in axentx/* repos for code-specific routing

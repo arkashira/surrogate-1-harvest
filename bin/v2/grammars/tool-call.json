@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Surrogate-1 v2 Tool Call Grammar",
+  "description": "Hermes XML format with strict JSON-schema validation for arguments. Used by XGrammar at decode-time.",
+  "type": "object",
+  "required": ["name", "arguments"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "enum": [
+        "spawn_subagent",
+        "receive_results",
+        "scratchpad_write",
+        "scratchpad_read",
+        "skill_recall",
+        "reflexion_log",
+        "code_exec",
+        "file_read",
+        "file_edit",
+        "shell_exec",
+        "search_repo",
+        "grep_repo",
+        "list_dir",
+        "git_diff",
+        "git_commit",
+        "run_tests",
+        "lint_check",
+        "security_scan",
+        "deploy_canary",
+        "rollback_deploy",
+        "monitor_metrics",
+        "query_logs",
+        "fetch_url",
+        "search_web"
+      ]
+    },
+    "arguments": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
